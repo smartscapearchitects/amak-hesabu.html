@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1d4ed8" />
   <title>AMAK Hesabu — Kikokotoo cha Biashara</title>
+  <link rel="manifest" href="./manifest.json" />
   <style>
     :root {
       --bg: #f4f6f9;
@@ -636,6 +638,12 @@
       } catch (e) {}
       applyLang();
       render();
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
     }
 
     document.getElementById("price").addEventListener("input", updatePreview);
