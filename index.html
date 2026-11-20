@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#1d4ed8" />
-  <title>AMAK Hesabu — Kikokotoo cha Biashara</title>
+  <title>AMAK Hesabu — Kikokotoo na Risiti A5</title>
   <link rel="manifest" href="./manifest.json" />
   <style>
     :root {
@@ -67,6 +67,7 @@
       color: var(--text);
       border: 1px solid var(--border);
     }
+    button.success { background: var(--success); color: #fff; }
     button.danger { background: var(--danger); color: #fff; }
     button.small { padding: 6px 10px; font-size: 0.8rem; }
     .card {
@@ -88,8 +89,11 @@
       color: #fff;
       border-color: var(--primary);
     }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
     .grid-3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
-    @media (max-width: 560px) { .grid-3 { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
     label {
       display: block;
       font-size: 0.82rem;
@@ -147,6 +151,97 @@
       background: var(--bg);
     }
     .hidden { display: none; }
+
+    /* A5 Print / PDF Receipt Styling */
+    #printReceiptArea { display: none; }
+
+    @media print {
+      @page {
+        size: A5 portrait;
+        margin: 10mm;
+      }
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .app { display: none !important; }
+      #printReceiptArea {
+        display: block !important;
+        width: 100%;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #000;
+        font-size: 11pt;
+      }
+      .rcpt-header {
+        text-align: center;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8px;
+        margin-bottom: 10px;
+      }
+      .rcpt-header h2 {
+        margin: 0;
+        font-size: 18pt;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .rcpt-header p {
+        margin: 2px 0;
+        font-size: 9.5pt;
+        color: #333;
+      }
+      .rcpt-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 9.5pt;
+        margin-bottom: 10px;
+        border-bottom: 1px dashed #666;
+        padding-bottom: 6px;
+      }
+      .rcpt-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+        font-size: 9.5pt;
+      }
+      .rcpt-table th {
+        border-top: 1px solid #000;
+        border-bottom: 1px solid #000;
+        padding: 5px 4px;
+        text-align: left;
+        background: #f1f5f9 !important;
+        -webkit-print-color-adjust: exact;
+      }
+      .rcpt-table td {
+        padding: 5px 4px;
+        border-bottom: 1px solid #ddd;
+      }
+      .rcpt-table .num { text-align: right; }
+      .rcpt-totals {
+        margin-top: 8px;
+        border-top: 2px solid #000;
+        padding-top: 6px;
+        font-size: 10.5pt;
+      }
+      .rcpt-totals div {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .rcpt-grand {
+        font-size: 13pt;
+        font-weight: 700;
+      }
+      .rcpt-footer {
+        margin-top: 18px;
+        text-align: center;
+        font-size: 9pt;
+        color: #444;
+        border-top: 1px dashed #999;
+        padding-top: 8px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -154,7 +249,7 @@
     <div class="header">
       <div class="brand">
         <h1>AMAK Hesabu</h1>
-        <p id="subtitle">Kikokotoo cha Bei, Idadi na Usahihi (TZS)</p>
+        <p id="subtitle">Kikokotoo cha Bei, Idadi na Risiti A5 (TZS)</p>
       </div>
       <div class="controls">
         <button class="secondary small" onclick="toggleLang()" id="langBtn">EN</button>
@@ -169,6 +264,17 @@
 
     <div id="calcTab">
       <div class="card">
+        <div class="grid-2">
+          <div>
+            <label for="customerName" id="lblCust">Jina la Mteja / Risiti (Si lazima)</label>
+            <input type="text" id="customerName" placeholder="Mf. Juma / Cash Sale" oninput="persist()" />
+          </div>
+          <div>
+            <label for="bizSub" id="lblBizSub">Maelezo ya Duka (kwenye Risiti)</label>
+            <input type="text" id="bizSub" value="AMAK TECHNOLOGY — Kariakoo, Dar es Salaam" oninput="persist()" />
+          </div>
+        </div>
+
         <div class="grid-3">
           <div>
             <label for="itemName" id="lblName">Bidhaa (Si lazima)</label>
@@ -245,6 +351,7 @@
         </div>
 
         <div class="actions-bar">
+          <button type="button" class="success" onclick="printReceiptA5()" id="pdfBtn">Risiti PDF (A5)</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
           <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
@@ -265,8 +372,51 @@
     </div>
   </div>
 
+  <!-- A5 Receipt Print Template -->
+  <div id="printReceiptArea">
+    <div class="rcpt-header">
+      <h2>AMAK</h2>
+      <p id="rcptBizSub">AMAK TECHNOLOGY — Kariakoo, Dar es Salaam</p>
+      <p><strong id="rcptDocTitle">RISITI YA MAUZO / RECEIPT</strong></p>
+    </div>
+    <div class="rcpt-meta">
+      <div>
+        <div><strong id="rcptCustLbl">Mteja:</strong> <span id="rcptCustomer">-</span></div>
+        <div><strong id="rcptNoLbl">Risiti Na.:</strong> <span id="rcptNo">-</span></div>
+      </div>
+      <div style="text-align:right;">
+        <div><strong id="rcptDateLbl">Tarehe:</strong> <span id="rcptDate">-</span></div>
+      </div>
+    </div>
+    <table class="rcpt-table">
+      <thead>
+        <tr>
+          <th style="width:8%;">#</th>
+          <th style="width:42%;" id="rcptThItem">Bidhaa</th>
+          <th class="num" style="width:18%;" id="rcptThPrice">Bei</th>
+          <th class="num" style="width:12%;" id="rcptThQty">Idadi</th>
+          <th class="num" style="width:20%;" id="rcptThSub">Jumla</th>
+        </tr>
+      </thead>
+      <tbody id="rcptBody"></tbody>
+    </table>
+    <div class="rcpt-totals">
+      <div>
+        <span id="rcptTotQtyLbl">Jumla ya Idadi (Total Qty):</span>
+        <strong id="rcptTotQty">0</strong>
+      </div>
+      <div class="rcpt-grand">
+        <span id="rcptGrandLbl">JUMLA KUU (TZS):</span>
+        <span id="rcptGrandTotal">0</span>
+      </div>
+    </div>
+    <div class="rcpt-footer">
+      <p id="rcptThanks">Asante kwa kufanya biashara na AMAK!</p>
+    </div>
+  </div>
+
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v1";
+    const STORAGE_KEY = "amak_hesabu_state_v2";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -275,9 +425,11 @@
 
     const i18n = {
       sw: {
-        subtitle: "Kikokotoo cha Bei, Idadi na Usahihi (TZS)",
+        subtitle: "Kikokotoo cha Bei, Idadi na Risiti A5 (TZS)",
         tabCalc: "Hesabu",
         tabHist: "Historia",
+        lblCust: "Jina la Mteja / Risiti (Si lazima)",
+        lblBizSub: "Maelezo ya Duka (kwenye Risiti)",
         lblName: "Bidhaa (Si lazima)",
         lblPrice: "Bei (Price - TZS)",
         lblQty: "Idadi (Qty)",
@@ -294,6 +446,7 @@
         thQty: "Idadi",
         thSub: "Jumla Ndogo",
         thAct: "Hatua",
+        pdfBtn: "Risiti PDF (A5)",
         saveBtn: "Hifadhi Historia",
         waBtn: "Nakili WhatsApp",
         csvBtn: "Pakua CSV",
@@ -301,14 +454,24 @@
         histTitle: "Historia ya Hesabu Zilizohifadhiwa",
         clearHistBtn: "Futa Historia",
         errInput: "Weka Bei >= 0 na Idadi > 0.",
+        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kutoa Risiti PDF (A5).",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        noHist: "Hakuna historia iliyohifadhiwa bado."
+        noHist: "Hakuna historia iliyohifadhiwa bado.",
+        rcptDocTitle: "RISITI YA MAUZO",
+        rcptCustLbl: "Mteja:",
+        rcptNoLbl: "Risiti Na.:",
+        rcptDateLbl: "Tarehe:",
+        rcptTotQtyLbl: "Jumla ya Idadi:",
+        rcptGrandLbl: "JUMLA KUU (TZS):",
+        rcptThanks: "Asante kwa kufanya biashara na AMAK!"
       },
       en: {
-        subtitle: "Price, Quantity & Accuracy Calculator (TZS)",
+        subtitle: "Price, Quantity & A5 PDF Receipt (TZS)",
         tabCalc: "Calculator",
         tabHist: "History",
+        lblCust: "Customer / Receipt Name (Optional)",
+        lblBizSub: "Business Subtitle (on Receipt)",
         lblName: "Item (Optional)",
         lblPrice: "Price (TZS)",
         lblQty: "Quantity (Qty)",
@@ -325,6 +488,7 @@
         thQty: "Qty",
         thSub: "Subtotal",
         thAct: "Action",
+        pdfBtn: "Receipt PDF (A5)",
         saveBtn: "Save to History",
         waBtn: "Copy WhatsApp",
         csvBtn: "Export CSV",
@@ -332,9 +496,17 @@
         histTitle: "Saved Calculation Sessions",
         clearHistBtn: "Clear History",
         errInput: "Enter Price >= 0 and Quantity > 0.",
+        emptyReceiptErr: "Add at least one item before generating an A5 PDF Receipt.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        noHist: "No saved sessions yet."
+        noHist: "No saved sessions yet.",
+        rcptDocTitle: "SALES RECEIPT",
+        rcptCustLbl: "Customer:",
+        rcptNoLbl: "Receipt No.:",
+        rcptDateLbl: "Date:",
+        rcptTotQtyLbl: "Total Quantity:",
+        rcptGrandLbl: "GRAND TOTAL (TZS):",
+        rcptThanks: "Thank you for doing business with AMAK!"
       }
     };
 
@@ -351,6 +523,8 @@
       document.getElementById("subtitle").textContent = t.subtitle;
       document.getElementById("tabCalcBtn").textContent = t.tabCalc;
       document.getElementById("tabHistBtn").innerHTML = `${t.tabHist} (<span id="histCount">${history.length}</span>)`;
+      document.getElementById("lblCust").textContent = t.lblCust;
+      document.getElementById("lblBizSub").textContent = t.lblBizSub;
       document.getElementById("lblName").textContent = t.lblName;
       document.getElementById("lblPrice").textContent = t.lblPrice;
       document.getElementById("lblQty").textContent = t.lblQty;
@@ -367,6 +541,7 @@
       document.getElementById("thQty").textContent = t.thQty;
       document.getElementById("thSub").textContent = t.thSub;
       document.getElementById("thAct").textContent = t.thAct;
+      document.getElementById("pdfBtn").textContent = t.pdfBtn;
       document.getElementById("saveBtn").textContent = t.saveBtn;
       document.getElementById("waBtn").textContent = t.waBtn;
       document.getElementById("csvBtn").textContent = t.csvBtn;
@@ -524,11 +699,68 @@
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
+    function printReceiptA5() {
+      const t = i18n[lang];
+      if (!items.length) {
+        document.getElementById("inputError").textContent = t.emptyReceiptErr;
+        return;
+      }
+      document.getElementById("inputError").textContent = "";
+
+      const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
+      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK";
+      const now = new Date();
+      const rcptNo = "AMAK-" + String(now.getFullYear()).slice(-2) +
+        String(now.getMonth() + 1).padStart(2, "0") +
+        String(now.getDate()).padStart(2, "0") + "-" +
+        String(now.getHours()).padStart(2, "0") +
+        String(now.getMinutes()).padStart(2, "0");
+
+      document.getElementById("rcptBizSub").textContent = bizSub;
+      document.getElementById("rcptDocTitle").textContent = t.rcptDocTitle;
+      document.getElementById("rcptCustLbl").textContent = t.rcptCustLbl;
+      document.getElementById("rcptNoLbl").textContent = t.rcptNoLbl;
+      document.getElementById("rcptDateLbl").textContent = t.rcptDateLbl;
+      document.getElementById("rcptCustomer").textContent = cust;
+      document.getElementById("rcptNo").textContent = rcptNo;
+      document.getElementById("rcptDate").textContent = now.toLocaleString();
+
+      document.getElementById("rcptThItem").textContent = t.thItem;
+      document.getElementById("rcptThPrice").textContent = t.thPrice;
+      document.getElementById("rcptThQty").textContent = t.thQty;
+      document.getElementById("rcptThSub").textContent = t.thSub;
+      document.getElementById("rcptTotQtyLbl").textContent = t.rcptTotQtyLbl;
+      document.getElementById("rcptGrandLbl").textContent = t.rcptGrandLbl;
+      document.getElementById("rcptThanks").textContent = t.rcptThanks;
+
+      const rcptBody = document.getElementById("rcptBody");
+      rcptBody.innerHTML = items.map((it, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(it.name)}</td>
+          <td class="num">${fmt(it.price)}</td>
+          <td class="num">${fmt(it.qty)}</td>
+          <td class="num"><strong>${fmt(it.subtotal)}</strong></td>
+        </tr>
+      `).join("");
+
+      const { totalQty, grandTotal } = getTotals();
+      document.getElementById("rcptTotQty").textContent = fmt(totalQty);
+      document.getElementById("rcptGrandTotal").textContent = fmt(grandTotal);
+
+      const prevTitle = document.title;
+      document.title = `${rcptNo}_${cust.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+      window.print();
+      setTimeout(() => { document.title = prevTitle; }, 1000);
+    }
+
     function saveSession() {
       if (!items.length) return;
       const { totalQty, grandTotal, count } = getTotals();
+      const cust = document.getElementById("customerName").value.trim();
       history.unshift({
         id: Date.now(),
+        customer: cust,
         date: new Date().toLocaleString(),
         count,
         totalQty,
@@ -549,11 +781,12 @@
       }
       box.innerHTML = history.map(h => `
         <div class="history-item">
-          <div><strong>${escapeHtml(h.date)}</strong></div>
+          <div><strong>${escapeHtml(h.date)}</strong> ${h.customer ? `— ${escapeHtml(h.customer)}` : ""}</div>
           <div>${i18n[lang].lblLineCount}: ${fmt(h.count)} | ${i18n[lang].lblTotalQty}: ${fmt(h.totalQty)}</div>
           <div><strong>${i18n[lang].lblGrandTotal}: ${fmt(h.grandTotal)} TZS</strong></div>
-          <div style="margin-top:8px;">
+          <div style="margin-top:8px; display:flex; gap:8px;">
             <button type="button" class="secondary small" onclick="loadSession(${h.id})">Load</button>
+            <button type="button" class="success small" onclick="loadAndPrint(${h.id})">PDF (A5)</button>
           </div>
         </div>
       `).join("");
@@ -563,9 +796,17 @@
       const found = history.find(h => h.id === id);
       if (!found) return;
       items = found.items.map(x => ({ ...x, id: Date.now() + Math.random() }));
+      if (found.customer !== undefined) {
+        document.getElementById("customerName").value = found.customer;
+      }
       render();
       persist();
       switchTab("calc");
+    }
+
+    function loadAndPrint(id) {
+      loadSession(id);
+      setTimeout(() => printReceiptA5(), 150);
     }
 
     function clearHistory() {
@@ -576,9 +817,10 @@
 
     function copyWhatsApp() {
       const { totalQty, grandTotal, count } = getTotals();
+      const cust = document.getElementById("customerName").value.trim();
       const lines = items.map((it, i) => `${i + 1}. ${it.name}: ${fmt(it.price)} x ${fmt(it.qty)} = ${fmt(it.subtotal)}`);
       const text = [
-        `*AMAK Hesabu Summary*`,
+        `*AMAK Hesabu Summary*${cust ? ` (${cust})` : ""}`,
         ...lines,
         `-------------------`,
         `Items: ${fmt(count)} | Total Qty: ${fmt(totalQty)}`,
@@ -604,6 +846,7 @@
 
     function resetSession() {
       items = [];
+      document.getElementById("customerName").value = "";
       document.getElementById("actualVal").value = "";
       render();
       persist();
@@ -619,6 +862,8 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         lang,
         dark: document.body.classList.contains("dark"),
+        customerName: document.getElementById("customerName").value,
+        bizSub: document.getElementById("bizSub").value,
         items
       }));
       localStorage.setItem(HIST_KEY, JSON.stringify(history));
@@ -631,6 +876,12 @@
         if (raw.dark) {
           document.body.classList.add("dark");
           document.getElementById("themeBtn").textContent = "Light";
+        }
+        if (typeof raw.customerName === "string") {
+          document.getElementById("customerName").value = raw.customerName;
+        }
+        if (typeof raw.bizSub === "string" && raw.bizSub.trim()) {
+          document.getElementById("bizSub").value = raw.bizSub;
         }
         if (Array.isArray(raw.items)) items = raw.items;
         const hRaw = JSON.parse(localStorage.getItem(HIST_KEY) || "[]");
