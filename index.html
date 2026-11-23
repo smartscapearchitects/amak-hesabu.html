@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#1d4ed8" />
-  <title>AMAK Hesabu — Kikokotoo na Risiti A5</title>
+  <title>AMAK Hesabu — Kikokotoo na Risiti</title>
   <link rel="manifest" href="./manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
@@ -143,7 +143,8 @@
       border-bottom: 1px solid var(--border);
       text-align: left;
     }
-    .actions-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .actions-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+    .paper-select { width: auto; min-width: 175px; padding: 9px 10px; font-size: 0.9rem; }
     .history-item {
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -159,7 +160,7 @@
     <div class="header">
       <div class="brand">
         <h1>AMAK Hesabu</h1>
-        <p id="subtitle">Kikokotoo cha Bei, Idadi na Risiti A5 (TZS)</p>
+        <p id="subtitle">Kikokotoo cha Bei, Idadi na Risiti (TZS)</p>
       </div>
       <div class="controls">
         <button class="secondary small" onclick="toggleLang()" id="langBtn">EN</button>
@@ -261,7 +262,11 @@
         </div>
 
         <div class="actions-bar">
-          <button type="button" class="success" onclick="downloadReceiptA5PDF()" id="pdfBtn">Risiti PDF (A5)</button>
+          <select id="paperSize" class="paper-select" onchange="persist()" aria-label="Receipt Paper Size">
+            <option value="58mm">Thermal 58mm (Printer Ndogo)</option>
+            <option value="a5">A5 (148 × 210 mm)</option>
+          </select>
+          <button type="button" class="success" onclick="downloadReceiptPDF()" id="pdfBtn">Pakua Risiti PDF</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
           <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
@@ -283,7 +288,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v6";
+    const STORAGE_KEY = "amak_hesabu_state_v8";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -292,7 +297,7 @@
 
     const i18n = {
       sw: {
-        subtitle: "Kikokotoo cha Bei, Idadi na Risiti A5 (TZS)",
+        subtitle: "Kikokotoo cha Bei, Idadi na Risiti (TZS)",
         tabCalc: "Hesabu",
         tabHist: "Historia",
         lblCust: "Jina la Mteja / Risiti (Si lazima)",
@@ -313,7 +318,7 @@
         thQty: "Idadi",
         thSub: "Jumla Ndogo",
         thAct: "Hatua",
-        pdfBtn: "Risiti PDF (A5)",
+        pdfBtn: "Pakua Risiti PDF",
         saveBtn: "Hifadhi Historia",
         waBtn: "Nakili WhatsApp",
         csvBtn: "Pakua CSV",
@@ -321,15 +326,15 @@
         histTitle: "Historia ya Hesabu Zilizohifadhiwa",
         clearHistBtn: "Futa Historia",
         errInput: "Weka Bei >= 0 na Idadi > 0.",
-        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kupakua Risiti PDF (A5).",
+        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kupakua Risiti PDF.",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        pdfDownloadedMsg: "Risiti PDF (A5) imepakuliwa.",
+        pdfDownloadedMsg: "Risiti PDF imepakuliwa.",
         pdfLibErr: "Imeshindwa kupakia maktaba ya PDF. Hakikisha intaneti ipo kisha jaribu tena.",
         noHist: "Hakuna historia iliyohifadhiwa bado."
       },
       en: {
-        subtitle: "Price, Quantity & A5 PDF Receipt (TZS)",
+        subtitle: "Price, Quantity & Receipt (TZS)",
         tabCalc: "Calculator",
         tabHist: "History",
         lblCust: "Customer / Receipt Name (Optional)",
@@ -350,7 +355,7 @@
         thQty: "Qty",
         thSub: "Subtotal",
         thAct: "Action",
-        pdfBtn: "Receipt PDF (A5)",
+        pdfBtn: "Download Receipt PDF",
         saveBtn: "Save to History",
         waBtn: "Copy WhatsApp",
         csvBtn: "Export CSV",
@@ -358,10 +363,10 @@
         histTitle: "Saved Calculation Sessions",
         clearHistBtn: "Clear History",
         errInput: "Enter Price >= 0 and Quantity > 0.",
-        emptyReceiptErr: "Add at least one item before downloading an A5 PDF Receipt.",
+        emptyReceiptErr: "Add at least one item before downloading a Receipt PDF.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        pdfDownloadedMsg: "A5 PDF Receipt downloaded.",
+        pdfDownloadedMsg: "Receipt PDF downloaded.",
         pdfLibErr: "Could not load PDF library. Check internet connection and try again.",
         noHist: "No saved sessions yet."
       }
@@ -556,41 +561,136 @@
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
-    function downloadReceiptA5PDF() {
-      const t = i18n[lang];
-      if (!items.length) {
-        document.getElementById("inputError").textContent = t.emptyReceiptErr;
-        return;
+    function triggerPdfDownload(doc, fileName) {
+      try {
+        const pdfBlob = doc.output("blob");
+        const strictBlob = new Blob([pdfBlob], { type: "application/pdf" });
+        const url = URL.createObjectURL(strictBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 3000);
+      } catch (e) {
+        doc.save(fileName);
       }
-      document.getElementById("inputError").textContent = "";
+    }
 
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        showActionMsg(t.pdfLibErr, true);
-        return;
+    function buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now) {
+      const estimatedH = Math.max(115, 72 + items.length * 14);
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [58, estimatedH]
+      });
+
+      const pageW = 58;
+      const m = 3.5;
+      const innerW = pageW - m * 2;
+      let y = 7;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("AMAK", pageW / 2, y, { align: "center" });
+      y += 4;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      const subLines = doc.splitTextToSize(bizSub, innerW);
+      doc.text(subLines, pageW / 2, y, { align: "center" });
+      y += subLines.length * 3 + 1.5;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.text(lang === "sw" ? "RISITI (58mm)" : "RECEIPT (58mm)", pageW / 2, y, { align: "center" });
+      y += 2.5;
+
+      doc.setLineWidth(0.3);
+      doc.line(m, y, pageW - m, y);
+      y += 3.5;
+
+      doc.setFontSize(6.8);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${lang === "sw" ? "Mteja:" : "Cust:"}`, m, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(doc.splitTextToSize(cust, innerW - 11)[0], m + 11, y);
+      y += 3.2;
+
+      doc.setFont("helvetica", "bold");
+      doc.text(`${lang === "sw" ? "Na.:" : "No.:"}`, m, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(rcptNo, m + 7, y);
+      y += 3.2;
+
+      doc.text(now.toLocaleString(), m, y);
+      y += 2.5;
+
+      doc.line(m, y, pageW - m, y);
+      y += 3.5;
+
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        const nameLines = doc.splitTextToSize(`${i + 1}. ${it.name}`, innerW);
+        doc.text(nameLines, m, y);
+        y += nameLines.length * 3.1;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.8);
+        doc.text(`${fmt(it.price)} x ${fmt(it.qty)}`, m, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(fmt(it.subtotal), pageW - m, y, { align: "right" });
+        y += 4;
       }
 
-      const { jsPDF } = window.jspdf;
+      doc.setLineWidth(0.35);
+      doc.line(m, y, pageW - m, y);
+      y += 3.8;
+
+      const { totalQty, grandTotal } = getTotals();
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(lang === "sw" ? "Jumla Idadi:" : "Total Qty:", m, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(fmt(totalQty), pageW - m, y, { align: "right" });
+      y += 4.2;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.8);
+      doc.text("JUMLA (TZS):", m, y);
+      doc.text(fmt(grandTotal), pageW - m, y, { align: "right" });
+      y += 6.5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.text(
+        lang === "sw" ? "Asante kwa biashara na AMAK!" : "Thank you for business with AMAK!",
+        pageW / 2,
+        y,
+        { align: "center" }
+      );
+
+      return doc;
+    }
+
+    function buildA5PDF(jsPDF, cust, bizSub, rcptNo, now) {
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a5"
       });
 
-      const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
-      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY — Kariakoo, Dar es Salaam";
-      const now = new Date();
-      const rcptNo = "AMAK-" + String(now.getFullYear()).slice(-2) +
-        String(now.getMonth() + 1).padStart(2, "0") +
-        String(now.getDate()).padStart(2, "0") + "-" +
-        String(now.getHours()).padStart(2, "0") +
-        String(now.getMinutes()).padStart(2, "0");
-
-      const pageW = doc.internal.pageSize.getWidth(); // 148mm for A5
-      const pageH = doc.internal.pageSize.getHeight(); // 210mm for A5
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
       const margin = 10;
       let y = 14;
 
-      // Brand Header
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
       doc.text("AMAK", pageW / 2, y, { align: "center" });
@@ -611,7 +711,6 @@
       doc.line(margin, y, pageW - margin, y);
       y += 5;
 
-      // Meta Info
       doc.setFontSize(8.5);
       doc.setFont("helvetica", "bold");
       doc.text(`${lang === "sw" ? "Mteja:" : "Customer:"}`, margin, y);
@@ -635,7 +734,6 @@
       doc.line(margin, y, pageW - margin, y);
       y += 5;
 
-      // Table Header
       const colNo = margin;
       const colItem = margin + 8;
       const colPrice = pageW - margin - 46;
@@ -653,7 +751,6 @@
       doc.line(margin, y, pageW - margin, y);
       y += 4.5;
 
-      // Table Rows
       doc.setFont("helvetica", "normal");
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
@@ -710,8 +807,42 @@
         { align: "center" }
       );
 
-      const safeCust = cust.replace(/[^a-zA-Z0-9_-]/g, "_");
-      doc.save(`${rcptNo}_A5_${safeCust}.pdf`);
+      return doc;
+    }
+
+    function downloadReceiptPDF() {
+      const t = i18n[lang];
+      if (!items.length) {
+        document.getElementById("inputError").textContent = t.emptyReceiptErr;
+        return;
+      }
+      document.getElementById("inputError").textContent = "";
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        showActionMsg(t.pdfLibErr, true);
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const paper = document.getElementById("paperSize").value;
+      const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
+      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY — Kariakoo, Dar es Salaam";
+      const now = new Date();
+      const rcptNo = "AMAK-" + String(now.getFullYear()).slice(-2) +
+        String(now.getMonth() + 1).padStart(2, "0") +
+        String(now.getDate()).padStart(2, "0") + "-" +
+        String(now.getHours()).padStart(2, "0") +
+        String(now.getMinutes()).padStart(2, "0");
+
+      const doc = paper === "58mm"
+        ? buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now)
+        : buildA5PDF(jsPDF, cust, bizSub, rcptNo, now);
+
+      const safeCust = (cust.replace(/[^a-zA-Z0-9_-]/g, "_") || "Receipt");
+      const sizeTag = paper === "58mm" ? "58mm" : "A5";
+      const fileName = `${rcptNo}_${sizeTag}_${safeCust}.pdf`;
+
+      triggerPdfDownload(doc, fileName);
       showActionMsg(t.pdfDownloadedMsg);
     }
 
@@ -747,7 +878,7 @@
           <div><strong>${i18n[lang].lblGrandTotal}: ${fmt(h.grandTotal)} TZS</strong></div>
           <div style="margin-top:8px; display:flex; gap:8px;">
             <button type="button" class="secondary small" onclick="loadSession(${h.id})">Load</button>
-            <button type="button" class="success small" onclick="loadAndDownloadPDF(${h.id})">PDF (A5)</button>
+            <button type="button" class="success small" onclick="loadAndDownloadPDF(${h.id})">PDF</button>
           </div>
         </div>
       `).join("");
@@ -767,7 +898,7 @@
 
     function loadAndDownloadPDF(id) {
       loadSession(id);
-      setTimeout(() => downloadReceiptA5PDF(), 150);
+      setTimeout(() => downloadReceiptPDF(), 150);
     }
 
     function clearHistory() {
@@ -826,6 +957,7 @@
         dark: document.body.classList.contains("dark"),
         customerName: document.getElementById("customerName").value,
         bizSub: document.getElementById("bizSub").value,
+        paperSize: document.getElementById("paperSize").value,
         items
       }));
       localStorage.setItem(HIST_KEY, JSON.stringify(history));
@@ -844,6 +976,9 @@
         }
         if (typeof raw.bizSub === "string" && raw.bizSub.trim()) {
           document.getElementById("bizSub").value = raw.bizSub;
+        }
+        if (raw.paperSize === "58mm" || raw.paperSize === "a5") {
+          document.getElementById("paperSize").value = raw.paperSize;
         }
         if (Array.isArray(raw.items)) items = raw.items;
         const hRaw = JSON.parse(localStorage.getItem(HIST_KEY) || "[]");
