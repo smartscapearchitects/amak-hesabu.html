@@ -1,4 +1,4 @@
-const CACHE_NAME = "amak-hesabu-v13";
+const CACHE_NAME = "amak-hesabu-v14";
 const ASSETS = [
   "./",
   "./index.html",
