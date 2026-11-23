@@ -211,7 +211,7 @@
     .size-58mm .rcpt-foot { font-size: 9.5px; }
     .size-a5 .rcpt-foot { font-size: 11px; }
     .rcpt-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
-    .rcpt-fb { text-align: center; font-size: 11px; font-weight: 600; color: #15803d; margin-top: 6px; min-height: 16px; }
+    .rcpt-fb { text-align: center; font-size: 11px; font-weight: 600; color: #b45309; margin-top: 6px; min-height: 16px; }
 
     @media print {
       body > .app { display: none !important; }
@@ -350,7 +350,6 @@
           </select>
           <button type="button" class="success" onclick="openReceiptModal()" id="pdfBtn">Fungua Risiti</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
-          <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
           <button type="button" class="danger" onclick="resetSession()" id="resetBtn">Futa Zote</button>
         </div>
@@ -370,7 +369,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v12";
+    const STORAGE_KEY = "amak_hesabu_state_v13";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -403,7 +402,6 @@
         thAct: "Hatua",
         pdfBtn: "Fungua Risiti",
         saveBtn: "Hifadhi Historia",
-        waBtn: "Nakili WhatsApp",
         csvBtn: "Pakua CSV",
         resetBtn: "Futa Zote",
         histTitle: "Historia ya Hesabu Zilizohifadhiwa",
@@ -411,7 +409,6 @@
         errInput: "Weka Bei >= 0 na Idadi > 0.",
         emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kufungua risiti.",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
-        copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
         receiptOpenedMsg: "Risiti imefunguliwa.",
         noHist: "Hakuna historia iliyohifadhiwa bado."
       },
@@ -440,7 +437,6 @@
         thAct: "Action",
         pdfBtn: "Open Receipt",
         saveBtn: "Save to History",
-        waBtn: "Copy WhatsApp",
         csvBtn: "Export CSV",
         resetBtn: "Reset All",
         histTitle: "Saved Calculation Sessions",
@@ -448,7 +444,6 @@
         errInput: "Enter Price >= 0 and Quantity > 0.",
         emptyReceiptErr: "Add at least one item before opening a receipt.",
         savedMsg: "Session saved to History.",
-        copiedMsg: "Summary copied for WhatsApp.",
         receiptOpenedMsg: "Receipt opened.",
         noHist: "No saved sessions yet."
       }
@@ -488,7 +483,6 @@
       document.getElementById("thAct").textContent = t.thAct;
       document.getElementById("pdfBtn").textContent = t.pdfBtn;
       document.getElementById("saveBtn").textContent = t.saveBtn;
-      document.getElementById("waBtn").textContent = t.waBtn;
       document.getElementById("csvBtn").textContent = t.csvBtn;
       document.getElementById("resetBtn").textContent = t.resetBtn;
       document.getElementById("histTitle").textContent = t.histTitle;
@@ -682,44 +676,141 @@
       ].join("\n");
     }
 
+    function buildPrintableReceiptHtml(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg) {
+      const widthCss = is58 ? "58mm" : "148mm";
+      const pageSizeCss = is58 ? "58mm auto" : "A5 portrait";
+      const bodyFont = is58 ? "10px" : "12px";
+      const padCss = is58 ? "4mm 3mm" : "10mm";
+
+      const itemsBlock = is58
+        ? `<div style="margin-top:6px;">${items.map((it, idx) => `
+            <div style="margin-bottom:5px;border-bottom:1px dashed #cbd5e1;padding-bottom:4px;">
+              <div style="font-weight:700;">${idx + 1}. ${escapeHtml(it.name)}</div>
+              <div style="display:flex;justify-content:space-between;font-size:9.5px;margin-top:2px;">
+                <span>${fmt(it.price)} x ${fmt(it.qty)}</span>
+                <strong>${fmt(it.subtotal)}</strong>
+              </div>
+            </div>
+          `).join("")}</div>`
+        : `<table style="width:100%;border-collapse:collapse;margin-top:6px;">
+            <thead>
+              <tr style="border-bottom:1px solid #0f172a;">
+                <th style="text-align:left;padding:4px 2px;">#</th>
+                <th style="text-align:left;padding:4px 2px;">${lang === "sw" ? "Bidhaa" : "Item"}</th>
+                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Bei" : "Price"}</th>
+                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Idadi" : "Qty"}</th>
+                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Jumla" : "Total"}</th>
+              </tr>
+            </thead>
+            <tbody>${items.map((it, idx) => `
+              <tr>
+                <td style="padding:4px 2px;border-bottom:1px solid #e2e8f0;">${idx + 1}</td>
+                <td style="padding:4px 2px;border-bottom:1px solid #e2e8f0;">${escapeHtml(it.name)}</td>
+                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;">${fmt(it.price)}</td>
+                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;">${fmt(it.qty)}</td>
+                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;"><strong>${fmt(it.subtotal)}</strong></td>
+              </tr>
+            `).join("")}</tbody>
+          </table>`;
+
+      return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(rcptNo)}</title>
+  <style>
+    @page { size: ${pageSizeCss}; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto;
+      width: ${widthCss};
+      padding: ${padCss};
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: ${bodyFont};
+      color: #0f172a;
+      background: #ffffff;
+    }
+    .center { text-align: center; }
+    .brand { font-size: ${is58 ? "16px" : "22px"}; font-weight: 800; letter-spacing: 0.5px; }
+    .sub { font-size: ${is58 ? "9px" : "11px"}; color: #475569; margin-top: 2px; }
+    .title { font-weight: 700; margin-top: 6px; font-size: ${is58 ? "10.5px" : "13px"}; }
+    .hr { border-top: 1px solid #0f172a; margin: 7px 0; }
+    .hr-dash { border-top: 1px dashed #64748b; margin: 7px 0; }
+    .meta-row { display: flex; justify-content: space-between; gap: 6px; font-size: ${is58 ? "9.5px" : "11px"}; margin-bottom: 3px; }
+    .tot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+    .grand { font-size: ${is58 ? "12.5px" : "15px"}; font-weight: 800; margin-top: 6px; }
+    .qr-box { margin-top: 10px; text-align: center; }
+    .qr-cap { font-size: ${is58 ? "8.5px" : "10.5px"}; color: #475569; margin-top: 4px; }
+    .foot { margin-top: 8px; text-align: center; font-size: ${is58 ? "9px" : "11px"}; color: #334155; }
+    .bar { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .bar button { padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; background: #15803d; color: #fff; cursor: pointer; }
+    .bar button.sec { background: #e2e8f0; color: #0f172a; }
+    @media print { .bar { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="center brand">AMAK</div>
+  <div class="center sub">${escapeHtml(bizSub)}</div>
+  <div class="center title">${lang === "sw" ? (is58 ? "RISITI (58mm)" : "RISITI YA MAUZO (A5)") : (is58 ? "RECEIPT (58mm)" : "SALES RECEIPT (A5)")}</div>
+  <div class="hr"></div>
+  <div class="meta-row"><span><strong>${lang === "sw" ? "Mteja:" : "Customer:"}</strong> ${escapeHtml(cust)}</span></div>
+  <div class="meta-row"><span><strong>${lang === "sw" ? "Na.:" : "No.:"}</strong> ${escapeHtml(rcptNo)}</span><span>${escapeHtml(now.toLocaleDateString())}</span></div>
+  <div class="hr-dash"></div>
+  ${itemsBlock}
+  <div class="hr"></div>
+  <div class="tot-row"><span>${lang === "sw" ? "Jumla Idadi:" : "Total Qty:"}</span><strong>${fmt(totalQty)}</strong></div>
+  <div class="tot-row grand"><span>${lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):"}</span><span>${fmt(grandTotal)}</span></div>
+  ${qrSvg ? `<div class="qr-box">${qrSvg}<div class="qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
+  <div class="foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
+  <div class="bar">
+    <button type="button" onclick="window.print()">Save PDF / Print</button>
+    <button type="button" class="sec" onclick="window.close()">Close</button>
+  </div>
+</body>
+</html>`;
+    }
+
     function closeReceiptModal() {
       const modal = document.getElementById("receiptModal");
       if (modal) modal.remove();
     }
 
-    function triggerReceiptPrint() {
+    function openPdfAndPrintView(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg) {
       const fb = document.getElementById("rcptFeedback");
+      const htmlDoc = buildPrintableReceiptHtml(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg);
+      try {
+        const blob = new Blob([htmlDoc], { type: "text/html;charset=utf-8" });
+        const blobUrl = URL.createObjectURL(blob);
+        const opened = window.open(blobUrl, "_blank");
+        if (opened) {
+          if (fb) fb.textContent = lang === "sw" ? "Imefunguka kwenye dirisha la Print / Save PDF." : "Opened in Print / Save PDF view.";
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 6000);
+          return;
+        }
+      } catch (e) {}
+
       try {
         window.print();
-        if (fb) fb.textContent = lang === "sw" ? "Kama dirisha la print halifunguki kwenye app, tumia 'Share / Copy'." : "If print dialog does not open in app, use 'Share / Copy'.";
+        if (fb) fb.textContent = lang === "sw" ? "Chagua 'Save as PDF' au Printer yako." : "Choose 'Save as PDF' or your printer.";
       } catch (e) {
-        if (fb) fb.textContent = lang === "sw" ? "Tumia 'Share / Copy' kutuma au kuhifadhi risiti." : "Use 'Share / Copy' to send or save receipt.";
+        if (fb) fb.textContent = lang === "sw" ? "Fungua link ya tovuti kwenye Chrome ili kupata 'Save as PDF' na Print." : "Open site link in Chrome for full 'Save as PDF' and Print.";
       }
     }
 
-    function shareOrCopyReceipt(text) {
+    function shareReceipt(plainText) {
       const fb = document.getElementById("rcptFeedback");
       if (navigator.share) {
         navigator.share({
           title: "AMAK Receipt",
-          text
+          text: plainText
         }).then(() => {
-          if (fb) fb.textContent = lang === "sw" ? "Risiti imetumwa / kusharewa." : "Receipt shared.";
+          if (fb) fb.textContent = lang === "sw" ? "Risiti imesharewa." : "Receipt shared.";
         }).catch(() => {
-          copyTextFallback(text, fb);
+          if (fb) fb.textContent = lang === "sw" ? "Kama Share haikufunguka kwenye app, tumia 'Save PDF / Print'." : "If Share did not open in app, use 'Save PDF / Print'.";
         });
       } else {
-        copyTextFallback(text, fb);
-      }
-    }
-
-    function copyTextFallback(text, fb) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-          if (fb) fb.textContent = lang === "sw" ? "Risiti imenakiliwa." : "Receipt copied.";
-        }).catch(() => {
-          if (fb) fb.textContent = lang === "sw" ? "Tumia 'Nakili WhatsApp' kwenye ukurasa mkuu." : "Use 'Copy WhatsApp' on main screen.";
-        });
+        if (fb) fb.textContent = lang === "sw" ? "Tumia 'Save PDF / Print' kuhifadhi au kuchapisha risiti." : "Use 'Save PDF / Print' to save or print receipt.";
       }
     }
 
@@ -799,8 +890,8 @@
           ${qrSvg ? `<div class="rcpt-qr">${qrSvg}<div class="rcpt-qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
           <div class="rcpt-foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
           <div class="rcpt-btns">
-            <button type="button" class="small" onclick="triggerReceiptPrint()">Print</button>
-            <button type="button" class="success small" id="rcptShareBtn">Share / Copy</button>
+            <button type="button" class="small" id="rcptPdfPrintBtn">Save PDF / Print</button>
+            <button type="button" class="success small" id="rcptShareBtn">Share</button>
             <button type="button" class="secondary small" onclick="closeReceiptModal()">Close</button>
           </div>
           <div id="rcptFeedback" class="rcpt-fb"></div>
@@ -808,7 +899,12 @@
       `;
 
       document.body.appendChild(overlay);
-      document.getElementById("rcptShareBtn").addEventListener("click", () => shareOrCopyReceipt(plainText));
+      document.getElementById("rcptPdfPrintBtn").addEventListener("click", () => {
+        openPdfAndPrintView(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg);
+      });
+      document.getElementById("rcptShareBtn").addEventListener("click", () => {
+        shareReceipt(plainText);
+      });
       showActionMsg(t.receiptOpenedMsg);
     }
 
@@ -871,22 +967,6 @@
       history = [];
       renderHistory();
       persist();
-    }
-
-    function copyWhatsApp() {
-      const { totalQty, grandTotal, count } = getTotals();
-      const cust = document.getElementById("customerName").value.trim();
-      const lines = items.map((it, i) => `${i + 1}. ${it.name}: ${fmt(it.price)} x ${fmt(it.qty)} = ${fmt(it.subtotal)}`);
-      const text = [
-        `*AMAK Hesabu Summary*${cust ? ` (${cust})` : ""}`,
-        ...lines,
-        `-------------------`,
-        `Items: ${fmt(count)} | Total Qty: ${fmt(totalQty)}`,
-        `*Grand Total: ${fmt(grandTotal)} TZS*`
-      ].join("\n");
-
-      navigator.clipboard?.writeText(text).catch(() => {});
-      showActionMsg(i18n[lang].copiedMsg);
     }
 
     function exportCSV() {
