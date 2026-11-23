@@ -7,6 +7,7 @@
   <title>AMAK Hesabu — Kikokotoo na Risiti</title>
   <link rel="manifest" href="./manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <style>
     :root {
       --bg: #f4f6f9;
@@ -182,15 +183,22 @@
           </div>
           <div>
             <label for="bizSub" id="lblBizSub">Maelezo ya Duka (kwenye Risiti)</label>
-            <input type="text" id="bizSub" value="AMAK TECHNOLOGY — Kariakoo, Dar es Salaam" oninput="persist()" />
+            <input type="text" id="bizSub" value="AMAK TECHNOLOGY - Kariakoo, Dar es Salaam" oninput="persist()" />
           </div>
         </div>
 
-        <div class="grid-3">
+        <div class="grid-2">
+          <div>
+            <label for="qrCustom" id="lblQrCustom">Link / Taarifa ya QR Code (Si lazima)</label>
+            <input type="text" id="qrCustom" placeholder="Acha wazi kutumia muhtasari wa risiti" oninput="persist()" />
+          </div>
           <div>
             <label for="itemName" id="lblName">Bidhaa (Si lazima)</label>
             <input type="text" id="itemName" placeholder="Mf. Bearing / Item" />
           </div>
+        </div>
+
+        <div class="grid-2">
           <div>
             <label for="price" id="lblPrice">Bei (Price - TZS)</label>
             <input type="number" id="price" placeholder="0" step="any" min="0" />
@@ -200,6 +208,7 @@
             <input type="number" id="qty" placeholder="0" step="any" min="0" />
           </div>
         </div>
+
         <div class="preview-bar">
           <div><strong id="lblPreview">Jumla ndogo:</strong> <span id="liveSubtotal">0</span> TZS</div>
           <div style="display:flex; gap:8px;">
@@ -264,7 +273,7 @@
         <div class="actions-bar">
           <select id="paperSize" class="paper-select" onchange="persist()" aria-label="Receipt Paper Size">
             <option value="58mm">Thermal 58mm (Printer Ndogo)</option>
-            <option value="a5">A5 (148 × 210 mm)</option>
+            <option value="a5">A5 (148 x 210 mm)</option>
           </select>
           <button type="button" class="success" onclick="downloadReceiptPDF()" id="pdfBtn">Pakua Risiti PDF</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
@@ -288,7 +297,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v8";
+    const STORAGE_KEY = "amak_hesabu_state_v10";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -302,6 +311,7 @@
         tabHist: "Historia",
         lblCust: "Jina la Mteja / Risiti (Si lazima)",
         lblBizSub: "Maelezo ya Duka (kwenye Risiti)",
+        lblQrCustom: "Link / Taarifa ya QR Code (Si lazima)",
         lblName: "Bidhaa (Si lazima)",
         lblPrice: "Bei (Price - TZS)",
         lblQty: "Idadi (Qty)",
@@ -329,7 +339,7 @@
         emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kupakua Risiti PDF.",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        pdfDownloadedMsg: "Risiti PDF imepakuliwa.",
+        pdfDownloadedMsg: "Risiti PDF yenye QR Code imepakuliwa.",
         pdfLibErr: "Imeshindwa kupakia maktaba ya PDF. Hakikisha intaneti ipo kisha jaribu tena.",
         noHist: "Hakuna historia iliyohifadhiwa bado."
       },
@@ -339,6 +349,7 @@
         tabHist: "History",
         lblCust: "Customer / Receipt Name (Optional)",
         lblBizSub: "Business Subtitle (on Receipt)",
+        lblQrCustom: "Custom QR Code Link / Text (Optional)",
         lblName: "Item (Optional)",
         lblPrice: "Price (TZS)",
         lblQty: "Quantity (Qty)",
@@ -366,7 +377,7 @@
         emptyReceiptErr: "Add at least one item before downloading a Receipt PDF.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        pdfDownloadedMsg: "Receipt PDF downloaded.",
+        pdfDownloadedMsg: "Receipt PDF with QR Code downloaded.",
         pdfLibErr: "Could not load PDF library. Check internet connection and try again.",
         noHist: "No saved sessions yet."
       }
@@ -387,6 +398,7 @@
       document.getElementById("tabHistBtn").innerHTML = `${t.tabHist} (<span id="histCount">${history.length}</span>)`;
       document.getElementById("lblCust").textContent = t.lblCust;
       document.getElementById("lblBizSub").textContent = t.lblBizSub;
+      document.getElementById("lblQrCustom").textContent = t.lblQrCustom;
       document.getElementById("lblName").textContent = t.lblName;
       document.getElementById("lblPrice").textContent = t.lblPrice;
       document.getElementById("lblQty").textContent = t.lblQty;
@@ -561,28 +573,52 @@
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
+    function drawQrOnPdf(doc, qrPayload, centerX, y, sizeMm) {
+      if (typeof qrcode !== "function") return y;
+      try {
+        const qr = qrcode(0, "M");
+        qr.addData(qrPayload);
+        qr.make();
+        const count = qr.getModuleCount();
+        const cell = sizeMm / count;
+        const startX = centerX - sizeMm / 2;
+
+        doc.setFillColor(255, 255, 255);
+        doc.rect(startX - 1, y - 1, sizeMm + 2, sizeMm + 2, "F");
+
+        doc.setFillColor(0, 0, 0);
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              doc.rect(startX + c * cell, y + r * cell, cell + 0.05, cell + 0.05, "F");
+            }
+          }
+        }
+        return y + sizeMm + 3;
+      } catch (e) {
+        return y;
+      }
+    }
+
     function triggerPdfDownload(doc, fileName) {
       try {
-        const pdfBlob = doc.output("blob");
-        const strictBlob = new Blob([pdfBlob], { type: "application/pdf" });
-        const url = URL.createObjectURL(strictBlob);
+        const dataUri = doc.output("datauristring");
         const a = document.createElement("a");
-        a.href = url;
+        a.href = dataUri;
         a.download = fileName;
         a.style.display = "none";
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {
           document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 3000);
+        }, 2500);
       } catch (e) {
         doc.save(fileName);
       }
     }
 
-    function buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now) {
-      const estimatedH = Math.max(115, 72 + items.length * 14);
+    function buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload) {
+      const estimatedH = Math.max(145, 98 + items.length * 14);
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -665,9 +701,20 @@
       doc.setFontSize(8.8);
       doc.text("JUMLA (TZS):", m, y);
       doc.text(fmt(grandTotal), pageW - m, y, { align: "right" });
-      y += 6.5;
+      y += 5;
+
+      y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 20);
 
       doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.2);
+      doc.text(
+        lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt",
+        pageW / 2,
+        y,
+        { align: "center" }
+      );
+      y += 3.5;
+
       doc.setFontSize(6.5);
       doc.text(
         lang === "sw" ? "Asante kwa biashara na AMAK!" : "Thank you for business with AMAK!",
@@ -679,7 +726,7 @@
       return doc;
     }
 
-    function buildA5PDF(jsPDF, cust, bizSub, rcptNo, now) {
+    function buildA5PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload) {
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -757,7 +804,7 @@
         const wrappedName = doc.splitTextToSize(String(it.name), 52);
         const rowH = Math.max(wrappedName.length * 4, 4.5);
 
-        if (y + rowH > pageH - 36) {
+        if (y + rowH > pageH - 46) {
           doc.addPage("a5", "portrait");
           y = 14;
         }
@@ -774,7 +821,7 @@
         y += rowH + 2;
       }
 
-      if (y > pageH - 34) {
+      if (y > pageH - 55) {
         doc.addPage("a5", "portrait");
         y = 14;
       }
@@ -796,9 +843,20 @@
       doc.setFontSize(11.5);
       doc.text(lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):", margin, y);
       doc.text(fmt(grandTotal), pageW - margin, y, { align: "right" });
-      y += 10;
+      y += 6;
+
+      y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 24);
 
       doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(
+        lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt",
+        pageW / 2,
+        y,
+        { align: "center" }
+      );
+      y += 5;
+
       doc.setFontSize(8.5);
       doc.text(
         lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for doing business with AMAK!",
@@ -826,7 +884,8 @@
       const { jsPDF } = window.jspdf;
       const paper = document.getElementById("paperSize").value;
       const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
-      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY — Kariakoo, Dar es Salaam";
+      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY - Kariakoo, Dar es Salaam";
+      const customQr = document.getElementById("qrCustom").value.trim();
       const now = new Date();
       const rcptNo = "AMAK-" + String(now.getFullYear()).slice(-2) +
         String(now.getMonth() + 1).padStart(2, "0") +
@@ -834,9 +893,12 @@
         String(now.getHours()).padStart(2, "0") +
         String(now.getMinutes()).padStart(2, "0");
 
+      const { grandTotal, totalQty } = getTotals();
+      const qrPayload = customQr || `AMAK|No:${rcptNo}|Cust:${cust}|Qty:${totalQty}|Total:${grandTotal} TZS|Date:${now.toLocaleDateString()}`;
+
       const doc = paper === "58mm"
-        ? buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now)
-        : buildA5PDF(jsPDF, cust, bizSub, rcptNo, now);
+        ? buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload)
+        : buildA5PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload);
 
       const safeCust = (cust.replace(/[^a-zA-Z0-9_-]/g, "_") || "Receipt");
       const sizeTag = paper === "58mm" ? "58mm" : "A5";
@@ -957,6 +1019,7 @@
         dark: document.body.classList.contains("dark"),
         customerName: document.getElementById("customerName").value,
         bizSub: document.getElementById("bizSub").value,
+        qrCustom: document.getElementById("qrCustom").value,
         paperSize: document.getElementById("paperSize").value,
         items
       }));
@@ -976,6 +1039,9 @@
         }
         if (typeof raw.bizSub === "string" && raw.bizSub.trim()) {
           document.getElementById("bizSub").value = raw.bizSub;
+        }
+        if (typeof raw.qrCustom === "string") {
+          document.getElementById("qrCustom").value = raw.qrCustom;
         }
         if (raw.paperSize === "58mm" || raw.paperSize === "a5") {
           document.getElementById("paperSize").value = raw.paperSize;
