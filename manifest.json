@@ -1,15 +1,11 @@
 {
   "name": "AMAK Hesabu",
   "short_name": "AMAK Hesabu",
+  "description": "Kikokotoo cha Bei, Idadi, Usahihi na Risiti PDF ya A5 kwa biashara ya AMAK",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#f4f6f9",
   "theme_color": "#1d4ed8",
-  "icons": [
-    {
-      "src": "https://smartscapearchitects.github.io/amak-hesabu.html/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
+  "orientation": "portrait"
 }
