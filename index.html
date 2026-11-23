@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#1d4ed8" />
   <title>AMAK Hesabu — Kikokotoo na Risiti</title>
   <link rel="manifest" href="./manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <style>
     :root {
@@ -153,7 +154,7 @@
     }
     .hidden { display: none; }
 
-    /* Receipt Modal */
+    /* Receipt Preview Modal */
     .rcpt-overlay {
       position: fixed;
       inset: 0;
@@ -172,16 +173,8 @@
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
       max-width: 100%;
     }
-    .rcpt-sheet.size-58mm {
-      width: 230px;
-      padding: 12px 10px;
-      font-size: 11px;
-    }
-    .rcpt-sheet.size-a5 {
-      width: 460px;
-      padding: 18px 16px;
-      font-size: 12.5px;
-    }
+    .rcpt-sheet.size-58mm { width: 230px; padding: 12px 10px; font-size: 11px; }
+    .rcpt-sheet.size-a5 { width: 460px; padding: 18px 16px; font-size: 12.5px; }
     .rcpt-center { text-align: center; }
     .rcpt-brand { font-weight: 800; letter-spacing: 0.5px; }
     .size-58mm .rcpt-brand { font-size: 16px; }
@@ -215,16 +208,8 @@
 
     @media print {
       body > .app { display: none !important; }
-      .rcpt-overlay {
-        position: static !important;
-        background: #ffffff !important;
-        padding: 0 !important;
-        display: block !important;
-      }
-      .rcpt-sheet {
-        box-shadow: none !important;
-        border-radius: 0 !important;
-      }
+      .rcpt-overlay { position: static !important; background: #fff !important; padding: 0 !important; display: block !important; }
+      .rcpt-sheet { box-shadow: none !important; border-radius: 0 !important; }
       .rcpt-btns, .rcpt-fb { display: none !important; }
     }
   </style>
@@ -369,7 +354,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v13";
+    const STORAGE_KEY = "amak_hesabu_state_v14";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -659,159 +644,247 @@
       }
     }
 
-    function buildReceiptPlainText(rcptNo, cust, bizSub, now, totalQty, grandTotal) {
-      const lines = items.map((it, i) => `${i + 1}. ${it.name}: ${fmt(it.price)} x ${fmt(it.qty)} = ${fmt(it.subtotal)}`);
-      return [
-        `AMAK`,
-        `${bizSub}`,
-        `Risiti Na.: ${rcptNo}`,
-        `Mteja: ${cust}`,
-        `Tarehe: ${now.toLocaleDateString()}`,
-        `-------------------`,
-        ...lines,
-        `-------------------`,
-        `Jumla Idadi: ${fmt(totalQty)}`,
-        `JUMLA KUU (TZS): ${fmt(grandTotal)}`,
-        `Asante kwa kufanya biashara na AMAK!`
-      ].join("\n");
+    function drawQrOnPdf(doc, qrPayload, centerX, y, sizeMm) {
+      if (typeof qrcode !== "function") return y;
+      try {
+        const qr = qrcode(0, "M");
+        qr.addData(qrPayload);
+        qr.make();
+        const count = qr.getModuleCount();
+        const cell = sizeMm / count;
+        const startX = centerX - sizeMm / 2;
+        doc.setFillColor(255, 255, 255);
+        doc.rect(startX - 1, y - 1, sizeMm + 2, sizeMm + 2, "F");
+        doc.setFillColor(0, 0, 0);
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              doc.rect(startX + c * cell, y + r * cell, cell + 0.05, cell + 0.05, "F");
+            }
+          }
+        }
+        return y + sizeMm + 3;
+      } catch (e) {
+        return y;
+      }
     }
 
-    function buildPrintableReceiptHtml(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg) {
-      const widthCss = is58 ? "58mm" : "148mm";
-      const pageSizeCss = is58 ? "58mm auto" : "A5 portrait";
-      const bodyFont = is58 ? "10px" : "12px";
-      const padCss = is58 ? "4mm 3mm" : "10mm";
+    function createReceiptPdfBlob(rcptNo, cust, bizSub, now, is58, qrPayload) {
+      if (!window.jspdf || !window.jspdf.jsPDF) return null;
+      const { jsPDF } = window.jspdf;
+      const { totalQty, grandTotal } = getTotals();
 
-      const itemsBlock = is58
-        ? `<div style="margin-top:6px;">${items.map((it, idx) => `
-            <div style="margin-bottom:5px;border-bottom:1px dashed #cbd5e1;padding-bottom:4px;">
-              <div style="font-weight:700;">${idx + 1}. ${escapeHtml(it.name)}</div>
-              <div style="display:flex;justify-content:space-between;font-size:9.5px;margin-top:2px;">
-                <span>${fmt(it.price)} x ${fmt(it.qty)}</span>
-                <strong>${fmt(it.subtotal)}</strong>
-              </div>
-            </div>
-          `).join("")}</div>`
-        : `<table style="width:100%;border-collapse:collapse;margin-top:6px;">
-            <thead>
-              <tr style="border-bottom:1px solid #0f172a;">
-                <th style="text-align:left;padding:4px 2px;">#</th>
-                <th style="text-align:left;padding:4px 2px;">${lang === "sw" ? "Bidhaa" : "Item"}</th>
-                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Bei" : "Price"}</th>
-                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Idadi" : "Qty"}</th>
-                <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Jumla" : "Total"}</th>
-              </tr>
-            </thead>
-            <tbody>${items.map((it, idx) => `
-              <tr>
-                <td style="padding:4px 2px;border-bottom:1px solid #e2e8f0;">${idx + 1}</td>
-                <td style="padding:4px 2px;border-bottom:1px solid #e2e8f0;">${escapeHtml(it.name)}</td>
-                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;">${fmt(it.price)}</td>
-                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;">${fmt(it.qty)}</td>
-                <td style="text-align:right;padding:4px 2px;border-bottom:1px solid #e2e8f0;"><strong>${fmt(it.subtotal)}</strong></td>
-              </tr>
-            `).join("")}</tbody>
-          </table>`;
+      if (is58) {
+        const estH = Math.max(145, 98 + items.length * 14);
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [58, estH] });
+        const pageW = 58, m = 3.5, innerW = pageW - m * 2;
+        let y = 7;
 
-      return `<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(rcptNo)}</title>
-  <style>
-    @page { size: ${pageSizeCss}; margin: 0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0 auto;
-      width: ${widthCss};
-      padding: ${padCss};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: ${bodyFont};
-      color: #0f172a;
-      background: #ffffff;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("AMAK", pageW / 2, y, { align: "center" });
+        y += 4;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        const subLines = doc.splitTextToSize(bizSub, innerW);
+        doc.text(subLines, pageW / 2, y, { align: "center" });
+        y += subLines.length * 3 + 1.5;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.text("RISITI (58mm)", pageW / 2, y, { align: "center" });
+        y += 2.5;
+        doc.setLineWidth(0.3);
+        doc.line(m, y, pageW - m, y);
+        y += 3.5;
+
+        doc.setFontSize(6.8);
+        doc.text(`Mteja: ${cust}`, m, y);
+        y += 3.2;
+        doc.setFont("helvetica", "normal");
+        doc.text(`Na.: ${rcptNo}  ${now.toLocaleDateString()}`, m, y);
+        y += 2.5;
+        doc.line(m, y, pageW - m, y);
+        y += 3.5;
+
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7);
+          const nameLines = doc.splitTextToSize(`${i + 1}. ${it.name}`, innerW);
+          doc.text(nameLines, m, y);
+          y += nameLines.length * 3.1;
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.8);
+          doc.text(`${fmt(it.price)} x ${fmt(it.qty)}`, m, y);
+          doc.setFont("helvetica", "bold");
+          doc.text(fmt(it.subtotal), pageW - m, y, { align: "right" });
+          y += 4;
+        }
+
+        doc.line(m, y, pageW - m, y);
+        y += 3.8;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text("Jumla Idadi:", m, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(fmt(totalQty), pageW - m, y, { align: "right" });
+        y += 4.2;
+
+        doc.setFontSize(8.8);
+        doc.text("JUMLA (TZS):", m, y);
+        doc.text(fmt(grandTotal), pageW - m, y, { align: "right" });
+        y += 5;
+
+        y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 20);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.2);
+        doc.text("Scan QR kuthibitisha risiti", pageW / 2, y, { align: "center" });
+        y += 3.5;
+        doc.text("Asante kwa biashara na AMAK!", pageW / 2, y, { align: "center" });
+
+        return new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
+      } else {
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a5" });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        let y = 14;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("AMAK", pageW / 2, y, { align: "center" });
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        const subLines = doc.splitTextToSize(bizSub, pageW - margin * 2);
+        doc.text(subLines, pageW / 2, y, { align: "center" });
+        y += subLines.length * 4 + 2;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("RISITI YA MAUZO (A5)", pageW / 2, y, { align: "center" });
+        y += 3;
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, pageW - margin, y);
+        y += 5;
+
+        doc.setFontSize(8.5);
+        doc.text(`Mteja: ${cust}`, margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Tarehe: ${now.toLocaleDateString()}`, pageW - margin, y, { align: "right" });
+        y += 4.5;
+        doc.text(`Risiti Na.: ${rcptNo}`, margin, y);
+        y += 4;
+        doc.setLineWidth(0.2);
+        doc.line(margin, y, pageW - margin, y);
+        y += 5;
+
+        const colNo = margin, colItem = margin + 8, colPrice = pageW - margin - 46, colQty = pageW - margin - 24, colSub = pageW - margin;
+        doc.setFont("helvetica", "bold");
+        doc.text("#", colNo, y);
+        doc.text("Bidhaa", colItem, y);
+        doc.text("Bei", colPrice, y, { align: "right" });
+        doc.text("Idadi", colQty, y, { align: "right" });
+        doc.text("Jumla", colSub, y, { align: "right" });
+        y += 2;
+        doc.line(margin, y, pageW - margin, y);
+        y += 4.5;
+
+        doc.setFont("helvetica", "normal");
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          const wrappedName = doc.splitTextToSize(String(it.name), 52);
+          const rowH = Math.max(wrappedName.length * 4, 4.5);
+          if (y + rowH > pageH - 46) {
+            doc.addPage("a5", "portrait");
+            y = 14;
+          }
+          doc.text(String(i + 1), colNo, y);
+          doc.text(wrappedName, colItem, y);
+          doc.text(fmt(it.price), colPrice, y, { align: "right" });
+          doc.text(fmt(it.qty), colQty, y, { align: "right" });
+          doc.setFont("helvetica", "bold");
+          doc.text(fmt(it.subtotal), colSub, y, { align: "right" });
+          doc.setFont("helvetica", "normal");
+          y += rowH + 2;
+        }
+
+        if (y > pageH - 55) {
+          doc.addPage("a5", "portrait");
+          y = 14;
+        }
+        y += 1;
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, pageW - margin, y);
+        y += 5;
+
+        doc.setFontSize(9);
+        doc.text("Jumla ya Idadi:", margin, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(fmt(totalQty), pageW - margin, y, { align: "right" });
+        y += 6;
+
+        doc.setFontSize(11.5);
+        doc.text("JUMLA KUU (TZS):", margin, y);
+        doc.text(fmt(grandTotal), pageW - margin, y, { align: "right" });
+        y += 6;
+
+        y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 24);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("Scan QR kuthibitisha risiti", pageW / 2, y, { align: "center" });
+        y += 5;
+        doc.text("Asante kwa kufanya biashara na AMAK!", pageW / 2, y, { align: "center" });
+
+        return new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
+      }
     }
-    .center { text-align: center; }
-    .brand { font-size: ${is58 ? "16px" : "22px"}; font-weight: 800; letter-spacing: 0.5px; }
-    .sub { font-size: ${is58 ? "9px" : "11px"}; color: #475569; margin-top: 2px; }
-    .title { font-weight: 700; margin-top: 6px; font-size: ${is58 ? "10.5px" : "13px"}; }
-    .hr { border-top: 1px solid #0f172a; margin: 7px 0; }
-    .hr-dash { border-top: 1px dashed #64748b; margin: 7px 0; }
-    .meta-row { display: flex; justify-content: space-between; gap: 6px; font-size: ${is58 ? "9.5px" : "11px"}; margin-bottom: 3px; }
-    .tot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
-    .grand { font-size: ${is58 ? "12.5px" : "15px"}; font-weight: 800; margin-top: 6px; }
-    .qr-box { margin-top: 10px; text-align: center; }
-    .qr-cap { font-size: ${is58 ? "8.5px" : "10.5px"}; color: #475569; margin-top: 4px; }
-    .foot { margin-top: 8px; text-align: center; font-size: ${is58 ? "9px" : "11px"}; color: #334155; }
-    .bar { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-    .bar button { padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; background: #15803d; color: #fff; cursor: pointer; }
-    .bar button.sec { background: #e2e8f0; color: #0f172a; }
-    @media print { .bar { display: none; } }
-  </style>
-</head>
-<body>
-  <div class="center brand">AMAK</div>
-  <div class="center sub">${escapeHtml(bizSub)}</div>
-  <div class="center title">${lang === "sw" ? (is58 ? "RISITI (58mm)" : "RISITI YA MAUZO (A5)") : (is58 ? "RECEIPT (58mm)" : "SALES RECEIPT (A5)")}</div>
-  <div class="hr"></div>
-  <div class="meta-row"><span><strong>${lang === "sw" ? "Mteja:" : "Customer:"}</strong> ${escapeHtml(cust)}</span></div>
-  <div class="meta-row"><span><strong>${lang === "sw" ? "Na.:" : "No.:"}</strong> ${escapeHtml(rcptNo)}</span><span>${escapeHtml(now.toLocaleDateString())}</span></div>
-  <div class="hr-dash"></div>
-  ${itemsBlock}
-  <div class="hr"></div>
-  <div class="tot-row"><span>${lang === "sw" ? "Jumla Idadi:" : "Total Qty:"}</span><strong>${fmt(totalQty)}</strong></div>
-  <div class="tot-row grand"><span>${lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):"}</span><span>${fmt(grandTotal)}</span></div>
-  ${qrSvg ? `<div class="qr-box">${qrSvg}<div class="qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
-  <div class="foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
-  <div class="bar">
-    <button type="button" onclick="window.print()">Save PDF / Print</button>
-    <button type="button" class="sec" onclick="window.close()">Close</button>
-  </div>
-</body>
-</html>`;
+
+    async function exportPdfFile(rcptNo, cust, bizSub, now, is58, qrPayload) {
+      const fb = document.getElementById("rcptFeedback");
+      const pdfBlob = createReceiptPdfBlob(rcptNo, cust, bizSub, now, is58, qrPayload);
+      if (!pdfBlob) {
+        if (fb) fb.textContent = "Hakikisha intaneti ipo mara ya kwanza kupakia PDF generator.";
+        return;
+      }
+
+      const fileName = `${rcptNo}_${is58 ? "58mm" : "A5"}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: fileName
+          });
+          if (fb) fb.textContent = "Faili la PDF limetolewa.";
+          return;
+        } catch (e) {}
+      }
+
+      try {
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName;
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
+        if (fb) fb.textContent = "Faili la PDF limefunguliwa / kupakuliwa.";
+      } catch (e) {
+        if (fb) fb.textContent = "Fungua app kupitia Google Chrome kupakua faili la .pdf moja kwa moja.";
+      }
     }
 
     function closeReceiptModal() {
       const modal = document.getElementById("receiptModal");
       if (modal) modal.remove();
-    }
-
-    function openPdfAndPrintView(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg) {
-      const fb = document.getElementById("rcptFeedback");
-      const htmlDoc = buildPrintableReceiptHtml(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg);
-      try {
-        const blob = new Blob([htmlDoc], { type: "text/html;charset=utf-8" });
-        const blobUrl = URL.createObjectURL(blob);
-        const opened = window.open(blobUrl, "_blank");
-        if (opened) {
-          if (fb) fb.textContent = lang === "sw" ? "Imefunguka kwenye dirisha la Print / Save PDF." : "Opened in Print / Save PDF view.";
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 6000);
-          return;
-        }
-      } catch (e) {}
-
-      try {
-        window.print();
-        if (fb) fb.textContent = lang === "sw" ? "Chagua 'Save as PDF' au Printer yako." : "Choose 'Save as PDF' or your printer.";
-      } catch (e) {
-        if (fb) fb.textContent = lang === "sw" ? "Fungua link ya tovuti kwenye Chrome ili kupata 'Save as PDF' na Print." : "Open site link in Chrome for full 'Save as PDF' and Print.";
-      }
-    }
-
-    function shareReceipt(plainText) {
-      const fb = document.getElementById("rcptFeedback");
-      if (navigator.share) {
-        navigator.share({
-          title: "AMAK Receipt",
-          text: plainText
-        }).then(() => {
-          if (fb) fb.textContent = lang === "sw" ? "Risiti imesharewa." : "Receipt shared.";
-        }).catch(() => {
-          if (fb) fb.textContent = lang === "sw" ? "Kama Share haikufunguka kwenye app, tumia 'Save PDF / Print'." : "If Share did not open in app, use 'Save PDF / Print'.";
-        });
-      } else {
-        if (fb) fb.textContent = lang === "sw" ? "Tumia 'Save PDF / Print' kuhifadhi au kuchapisha risiti." : "Use 'Save PDF / Print' to save or print receipt.";
-      }
     }
 
     function openReceiptModal() {
@@ -838,7 +911,6 @@
       const { totalQty, grandTotal } = getTotals();
       const qrPayload = customQr || `AMAK|No:${rcptNo}|Cust:${cust}|Qty:${totalQty}|Total:${grandTotal} TZS|Date:${now.toLocaleDateString()}`;
       const qrSvg = buildQrSvgMarkup(qrPayload, is58 ? 84 : 104);
-      const plainText = buildReceiptPlainText(rcptNo, cust, bizSub, now, totalQty, grandTotal);
 
       const itemsHtml = is58
         ? `<div style="margin-top:6px;">${items.map((it, idx) => `
@@ -890,8 +962,8 @@
           ${qrSvg ? `<div class="rcpt-qr">${qrSvg}<div class="rcpt-qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
           <div class="rcpt-foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
           <div class="rcpt-btns">
-            <button type="button" class="small" id="rcptPdfPrintBtn">Save PDF / Print</button>
-            <button type="button" class="success small" id="rcptShareBtn">Share</button>
+            <button type="button" class="success small" id="rcptPdfBtn">Save / Share PDF</button>
+            <button type="button" class="small" onclick="window.print()">Print</button>
             <button type="button" class="secondary small" onclick="closeReceiptModal()">Close</button>
           </div>
           <div id="rcptFeedback" class="rcpt-fb"></div>
@@ -899,11 +971,8 @@
       `;
 
       document.body.appendChild(overlay);
-      document.getElementById("rcptPdfPrintBtn").addEventListener("click", () => {
-        openPdfAndPrintView(rcptNo, cust, bizSub, now, totalQty, grandTotal, is58, qrSvg);
-      });
-      document.getElementById("rcptShareBtn").addEventListener("click", () => {
-        shareReceipt(plainText);
+      document.getElementById("rcptPdfBtn").addEventListener("click", () => {
+        exportPdfFile(rcptNo, cust, bizSub, now, is58, qrPayload);
       });
       showActionMsg(t.receiptOpenedMsg);
     }
@@ -1034,6 +1103,32 @@
         const hRaw = JSON.parse(localStorage.getItem(HIST_KEY) || "[]");
         if (Array.isArray(hRaw)) history = hRaw;
       } catch (e) {}
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const imported = params.get("importOrder");
+        if (imported) {
+          const decoded = JSON.parse(decodeURIComponent(escape(atob(imported))));
+          if (decoded && Array.isArray(decoded.i) && decoded.i.length) {
+            if (typeof decoded.c === "string" && decoded.c.trim()) {
+              document.getElementById("customerName").value = decoded.c.trim();
+            }
+            items = decoded.i.map(x => {
+              const p = Number(x.p) || 0;
+              const q = Number(x.q) || 0;
+              return {
+                id: Date.now() + Math.random(),
+                name: String(x.n || "Item"),
+                price: p,
+                qty: q,
+                subtotal: mulExact(p, q)
+              };
+            });
+            persist();
+          }
+        }
+      } catch (e) {}
+
       applyLang();
       render();
     }
