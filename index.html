@@ -91,9 +91,8 @@
       border-color: var(--primary);
     }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-    .grid-3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
     @media (max-width: 560px) {
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
     }
     label {
       display: block;
@@ -153,6 +152,81 @@
       background: var(--bg);
     }
     .hidden { display: none; }
+
+    /* Receipt Modal */
+    .rcpt-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.72);
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .rcpt-sheet {
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+      max-width: 100%;
+    }
+    .rcpt-sheet.size-58mm {
+      width: 230px;
+      padding: 12px 10px;
+      font-size: 11px;
+    }
+    .rcpt-sheet.size-a5 {
+      width: 460px;
+      padding: 18px 16px;
+      font-size: 12.5px;
+    }
+    .rcpt-center { text-align: center; }
+    .rcpt-brand { font-weight: 800; letter-spacing: 0.5px; }
+    .size-58mm .rcpt-brand { font-size: 16px; }
+    .size-a5 .rcpt-brand { font-size: 21px; }
+    .rcpt-sub { color: #475569; margin-top: 2px; }
+    .size-58mm .rcpt-sub { font-size: 9.5px; }
+    .size-a5 .rcpt-sub { font-size: 11px; }
+    .rcpt-title { font-weight: 700; margin-top: 6px; }
+    .rcpt-hr { border-top: 1px solid #0f172a; margin: 7px 0; }
+    .rcpt-hr-dash { border-top: 1px dashed #64748b; margin: 7px 0; }
+    .rcpt-meta { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; }
+    .size-58mm .rcpt-meta { font-size: 10px; flex-wrap: wrap; }
+    .size-a5 .rcpt-meta { font-size: 11px; }
+    .rcpt-item-58 { margin-bottom: 5px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px; }
+    .rcpt-item-58-sub { display: flex; justify-content: space-between; font-size: 10px; margin-top: 2px; }
+    .rcpt-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .rcpt-table th, .rcpt-table td { padding: 4px 2px; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
+    .rcpt-tot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+    .rcpt-grand { font-weight: 800; margin-top: 6px; }
+    .size-58mm .rcpt-grand { font-size: 13px; }
+    .size-a5 .rcpt-grand { font-size: 15px; }
+    .rcpt-qr { margin-top: 10px; text-align: center; }
+    .rcpt-qr-cap { color: #475569; margin-top: 4px; }
+    .size-58mm .rcpt-qr-cap { font-size: 9px; }
+    .size-a5 .rcpt-qr-cap { font-size: 10.5px; }
+    .rcpt-foot { text-align: center; color: #334155; margin-top: 8px; }
+    .size-58mm .rcpt-foot { font-size: 9.5px; }
+    .size-a5 .rcpt-foot { font-size: 11px; }
+    .rcpt-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+    .rcpt-fb { text-align: center; font-size: 11px; font-weight: 600; color: #15803d; margin-top: 6px; min-height: 16px; }
+
+    @media print {
+      body > .app { display: none !important; }
+      .rcpt-overlay {
+        position: static !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+        display: block !important;
+      }
+      .rcpt-sheet {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+      .rcpt-btns, .rcpt-fb { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -274,7 +348,7 @@
             <option value="58mm">Thermal 58mm (Printer Ndogo)</option>
             <option value="a5">A5 (148 x 210 mm)</option>
           </select>
-          <button type="button" class="success" onclick="downloadReceiptPDF()" id="pdfBtn">Fungua Risiti</button>
+          <button type="button" class="success" onclick="openReceiptModal()" id="pdfBtn">Fungua Risiti</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
           <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
@@ -296,7 +370,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v11";
+    const STORAGE_KEY = "amak_hesabu_state_v12";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -338,7 +412,7 @@
         emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kufungua risiti.",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        pdfDownloadedMsg: "Risiti imefunguliwa.",
+        receiptOpenedMsg: "Risiti imefunguliwa.",
         noHist: "Hakuna historia iliyohifadhiwa bado."
       },
       en: {
@@ -375,7 +449,7 @@
         emptyReceiptErr: "Add at least one item before opening a receipt.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        pdfDownloadedMsg: "Receipt opened.",
+        receiptOpenedMsg: "Receipt opened.",
         noHist: "No saved sessions yet."
       }
     };
@@ -591,15 +665,75 @@
       }
     }
 
-    function downloadReceiptPDF() {
+    function buildReceiptPlainText(rcptNo, cust, bizSub, now, totalQty, grandTotal) {
+      const lines = items.map((it, i) => `${i + 1}. ${it.name}: ${fmt(it.price)} x ${fmt(it.qty)} = ${fmt(it.subtotal)}`);
+      return [
+        `AMAK`,
+        `${bizSub}`,
+        `Risiti Na.: ${rcptNo}`,
+        `Mteja: ${cust}`,
+        `Tarehe: ${now.toLocaleDateString()}`,
+        `-------------------`,
+        ...lines,
+        `-------------------`,
+        `Jumla Idadi: ${fmt(totalQty)}`,
+        `JUMLA KUU (TZS): ${fmt(grandTotal)}`,
+        `Asante kwa kufanya biashara na AMAK!`
+      ].join("\n");
+    }
+
+    function closeReceiptModal() {
+      const modal = document.getElementById("receiptModal");
+      if (modal) modal.remove();
+    }
+
+    function triggerReceiptPrint() {
+      const fb = document.getElementById("rcptFeedback");
+      try {
+        window.print();
+        if (fb) fb.textContent = lang === "sw" ? "Kama dirisha la print halifunguki kwenye app, tumia 'Share / Copy'." : "If print dialog does not open in app, use 'Share / Copy'.";
+      } catch (e) {
+        if (fb) fb.textContent = lang === "sw" ? "Tumia 'Share / Copy' kutuma au kuhifadhi risiti." : "Use 'Share / Copy' to send or save receipt.";
+      }
+    }
+
+    function shareOrCopyReceipt(text) {
+      const fb = document.getElementById("rcptFeedback");
+      if (navigator.share) {
+        navigator.share({
+          title: "AMAK Receipt",
+          text
+        }).then(() => {
+          if (fb) fb.textContent = lang === "sw" ? "Risiti imetumwa / kusharewa." : "Receipt shared.";
+        }).catch(() => {
+          copyTextFallback(text, fb);
+        });
+      } else {
+        copyTextFallback(text, fb);
+      }
+    }
+
+    function copyTextFallback(text, fb) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          if (fb) fb.textContent = lang === "sw" ? "Risiti imenakiliwa." : "Receipt copied.";
+        }).catch(() => {
+          if (fb) fb.textContent = lang === "sw" ? "Tumia 'Nakili WhatsApp' kwenye ukurasa mkuu." : "Use 'Copy WhatsApp' on main screen.";
+        });
+      }
+    }
+
+    function openReceiptModal() {
       const t = i18n[lang];
       if (!items.length) {
         document.getElementById("inputError").textContent = t.emptyReceiptErr;
         return;
       }
       document.getElementById("inputError").textContent = "";
+      closeReceiptModal();
 
       const paper = document.getElementById("paperSize").value;
+      const is58 = paper === "58mm";
       const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
       const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY - Kariakoo, Dar es Salaam";
       const customQr = document.getElementById("qrCustom").value.trim();
@@ -612,116 +746,70 @@
 
       const { totalQty, grandTotal } = getTotals();
       const qrPayload = customQr || `AMAK|No:${rcptNo}|Cust:${cust}|Qty:${totalQty}|Total:${grandTotal} TZS|Date:${now.toLocaleDateString()}`;
-      const qrSvg = buildQrSvgMarkup(qrPayload, paper === "58mm" ? 84 : 104);
+      const qrSvg = buildQrSvgMarkup(qrPayload, is58 ? 84 : 104);
+      const plainText = buildReceiptPlainText(rcptNo, cust, bizSub, now, totalQty, grandTotal);
 
-      const is58 = paper === "58mm";
-      const widthCss = is58 ? "58mm" : "148mm";
-      const pageSizeCss = is58 ? "58mm auto" : "A5 portrait";
-      const bodyFont = is58 ? "10px" : "12px";
-      const padCss = is58 ? "4mm 3mm" : "10mm";
+      const itemsHtml = is58
+        ? `<div style="margin-top:6px;">${items.map((it, idx) => `
+            <div class="rcpt-item-58">
+              <div style="font-weight:700;">${idx + 1}. ${escapeHtml(it.name)}</div>
+              <div class="rcpt-item-58-sub">
+                <span>${fmt(it.price)} x ${fmt(it.qty)}</span>
+                <strong>${fmt(it.subtotal)}</strong>
+              </div>
+            </div>
+          `).join("")}</div>`
+        : `<table class="rcpt-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;">#</th>
+                <th style="text-align:left;">${lang === "sw" ? "Bidhaa" : "Item"}</th>
+                <th style="text-align:right;">${lang === "sw" ? "Bei" : "Price"}</th>
+                <th style="text-align:right;">${lang === "sw" ? "Idadi" : "Qty"}</th>
+                <th style="text-align:right;">${lang === "sw" ? "Jumla" : "Total"}</th>
+              </tr>
+            </thead>
+            <tbody>${items.map((it, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td>${escapeHtml(it.name)}</td>
+                <td style="text-align:right;">${fmt(it.price)}</td>
+                <td style="text-align:right;">${fmt(it.qty)}</td>
+                <td style="text-align:right;"><strong>${fmt(it.subtotal)}</strong></td>
+              </tr>
+            `).join("")}</tbody>
+          </table>`;
 
-      const rowsHtml = items.map((it, idx) => is58
-        ? `<div style="margin-bottom:5px;border-bottom:1px dashed #cbd5e1;padding-bottom:4px;">
-             <div style="font-weight:700;">${idx + 1}. ${escapeHtml(it.name)}</div>
-             <div style="display:flex;justify-content:space-between;font-size:9.5px;">
-               <span>${fmt(it.price)} x ${fmt(it.qty)}</span>
-               <strong>${fmt(it.subtotal)}</strong>
-             </div>
-           </div>`
-        : `<tr>
-             <td>${idx + 1}</td>
-             <td>${escapeHtml(it.name)}</td>
-             <td style="text-align:right;">${fmt(it.price)}</td>
-             <td style="text-align:right;">${fmt(it.qty)}</td>
-             <td style="text-align:right;"><strong>${fmt(it.subtotal)}</strong></td>
-           </tr>`
-      ).join("");
+      const overlay = document.createElement("div");
+      overlay.id = "receiptModal";
+      overlay.className = "rcpt-overlay";
+      overlay.innerHTML = `
+        <div class="rcpt-sheet ${is58 ? "size-58mm" : "size-a5"}">
+          <div class="rcpt-center rcpt-brand">AMAK</div>
+          <div class="rcpt-center rcpt-sub">${escapeHtml(bizSub)}</div>
+          <div class="rcpt-center rcpt-title">${lang === "sw" ? (is58 ? "RISITI (58mm)" : "RISITI YA MAUZO (A5)") : (is58 ? "RECEIPT (58mm)" : "SALES RECEIPT (A5)")}</div>
+          <div class="rcpt-hr"></div>
+          <div class="rcpt-meta"><span><strong>${lang === "sw" ? "Mteja:" : "Customer:"}</strong> ${escapeHtml(cust)}</span></div>
+          <div class="rcpt-meta"><span><strong>${lang === "sw" ? "Na.:" : "No.:"}</strong> ${escapeHtml(rcptNo)}</span><span>${escapeHtml(now.toLocaleDateString())}</span></div>
+          <div class="rcpt-hr-dash"></div>
+          ${itemsHtml}
+          <div class="rcpt-hr"></div>
+          <div class="rcpt-tot-row"><span>${lang === "sw" ? "Jumla Idadi:" : "Total Qty:"}</span><strong>${fmt(totalQty)}</strong></div>
+          <div class="rcpt-tot-row rcpt-grand"><span>${lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):"}</span><span>${fmt(grandTotal)}</span></div>
+          ${qrSvg ? `<div class="rcpt-qr">${qrSvg}<div class="rcpt-qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
+          <div class="rcpt-foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
+          <div class="rcpt-btns">
+            <button type="button" class="small" onclick="triggerReceiptPrint()">Print</button>
+            <button type="button" class="success small" id="rcptShareBtn">Share / Copy</button>
+            <button type="button" class="secondary small" onclick="closeReceiptModal()">Close</button>
+          </div>
+          <div id="rcptFeedback" class="rcpt-fb"></div>
+        </div>
+      `;
 
-      const itemsBlock = is58
-        ? `<div style="margin-top:6px;">${rowsHtml}</div>`
-        : `<table style="width:100%;border-collapse:collapse;margin-top:6px;">
-             <thead>
-               <tr style="border-bottom:1px solid #0f172a;">
-                 <th style="text-align:left;padding:4px 2px;">#</th>
-                 <th style="text-align:left;padding:4px 2px;">${lang === "sw" ? "Bidhaa" : "Item"}</th>
-                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Bei" : "Price"}</th>
-                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Idadi" : "Qty"}</th>
-                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Jumla" : "Total"}</th>
-               </tr>
-             </thead>
-             <tbody>${rowsHtml}</tbody>
-           </table>`;
-
-      const receiptHtml = `<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(rcptNo)}</title>
-  <style>
-    @page { size: ${pageSizeCss}; margin: 0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0 auto;
-      width: ${widthCss};
-      padding: ${padCss};
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: ${bodyFont};
-      color: #0f172a;
-      background: #ffffff;
-    }
-    .center { text-align: center; }
-    .brand { font-size: ${is58 ? "16px" : "22px"}; font-weight: 800; letter-spacing: 0.5px; }
-    .sub { font-size: ${is58 ? "9px" : "11px"}; color: #475569; margin-top: 2px; }
-    .title { font-weight: 700; margin-top: 6px; font-size: ${is58 ? "10.5px" : "13px"}; }
-    .hr { border-top: 1px solid #0f172a; margin: 7px 0; }
-    .hr-dash { border-top: 1px dashed #64748b; margin: 7px 0; }
-    .meta-row { display: flex; justify-content: space-between; gap: 6px; font-size: ${is58 ? "9.5px" : "11px"}; margin-bottom: 3px; }
-    .tot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
-    .grand { font-size: ${is58 ? "12.5px" : "15px"}; font-weight: 800; margin-top: 6px; }
-    .qr-box { margin-top: 10px; text-align: center; }
-    .qr-cap { font-size: ${is58 ? "8.5px" : "10.5px"}; color: #475569; margin-top: 4px; }
-    .foot { margin-top: 8px; text-align: center; font-size: ${is58 ? "9px" : "11px"}; color: #334155; }
-    .no-print { margin-top: 12px; display: flex; gap: 8px; justify-content: center; }
-    .no-print button { padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #1d4ed8; color: #fff; cursor: pointer; }
-    .no-print button.sec { background: #f1f5f9; color: #0f172a; }
-    @media print { .no-print { display: none; } }
-  </style>
-</head>
-<body>
-  <div class="center brand">AMAK</div>
-  <div class="center sub">${escapeHtml(bizSub)}</div>
-  <div class="center title">${lang === "sw" ? (is58 ? "RISITI (58mm)" : "RISITI YA MAUZO (A5)") : (is58 ? "RECEIPT (58mm)" : "SALES RECEIPT (A5)")}</div>
-  <div class="hr"></div>
-  <div class="meta-row"><span><strong>${lang === "sw" ? "Mteja:" : "Customer:"}</strong> ${escapeHtml(cust)}</span></div>
-  <div class="meta-row"><span><strong>${lang === "sw" ? "Na.:" : "No.:"}</strong> ${escapeHtml(rcptNo)}</span><span>${escapeHtml(now.toLocaleDateString())}</span></div>
-  <div class="hr-dash"></div>
-  ${itemsBlock}
-  <div class="hr"></div>
-  <div class="tot-row"><span>${lang === "sw" ? "Jumla Idadi:" : "Total Qty:"}</span><strong>${fmt(totalQty)}</strong></div>
-  <div class="tot-row grand"><span>${lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):"}</span><span>${fmt(grandTotal)}</span></div>
-  ${qrSvg ? `<div class="qr-box">${qrSvg}<div class="qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
-  <div class="foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
-  <div class="no-print">
-    <button type="button" onclick="window.print()">Print / Save PDF</button>
-    <button type="button" class="sec" onclick="window.close()">Close</button>
-  </div>
-</body>
-</html>`;
-
-      const win = window.open("", "_blank");
-      if (win && win.document) {
-        win.document.open();
-        win.document.write(receiptHtml);
-        win.document.close();
-        showActionMsg(t.pdfDownloadedMsg);
-      } else {
-        const blob = new Blob([receiptHtml], { type: "text/html;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
-        showActionMsg(t.pdfDownloadedMsg);
-      }
+      document.body.appendChild(overlay);
+      document.getElementById("rcptShareBtn").addEventListener("click", () => shareOrCopyReceipt(plainText));
+      showActionMsg(t.receiptOpenedMsg);
     }
 
     function saveSession() {
@@ -756,7 +844,7 @@
           <div><strong>${i18n[lang].lblGrandTotal}: ${fmt(h.grandTotal)} TZS</strong></div>
           <div style="margin-top:8px; display:flex; gap:8px;">
             <button type="button" class="secondary small" onclick="loadSession(${h.id})">Load</button>
-            <button type="button" class="success small" onclick="loadAndDownloadPDF(${h.id})">PDF</button>
+            <button type="button" class="success small" onclick="loadAndOpenReceipt(${h.id})">Risiti</button>
           </div>
         </div>
       `).join("");
@@ -774,9 +862,9 @@
       switchTab("calc");
     }
 
-    function loadAndDownloadPDF(id) {
+    function loadAndOpenReceipt(id) {
       loadSession(id);
-      setTimeout(() => downloadReceiptPDF(), 150);
+      setTimeout(() => openReceiptModal(), 120);
     }
 
     function clearHistory() {
