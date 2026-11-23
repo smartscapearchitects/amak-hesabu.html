@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#1d4ed8" />
   <title>AMAK Hesabu — Kikokotoo na Risiti A5</title>
   <link rel="manifest" href="./manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     :root {
       --bg: #f4f6f9;
@@ -151,97 +152,6 @@
       background: var(--bg);
     }
     .hidden { display: none; }
-
-    /* A5 Print / PDF Receipt Styling */
-    #printReceiptArea { display: none; }
-
-    @media print {
-      @page {
-        size: A5 portrait;
-        margin: 10mm;
-      }
-      body {
-        background: #ffffff !important;
-        color: #000000 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-      .app { display: none !important; }
-      #printReceiptArea {
-        display: block !important;
-        width: 100%;
-        font-family: "Segoe UI", Arial, sans-serif;
-        color: #000;
-        font-size: 11pt;
-      }
-      .rcpt-header {
-        text-align: center;
-        border-bottom: 2px solid #000;
-        padding-bottom: 8px;
-        margin-bottom: 10px;
-      }
-      .rcpt-header h2 {
-        margin: 0;
-        font-size: 18pt;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-      }
-      .rcpt-header p {
-        margin: 2px 0;
-        font-size: 9.5pt;
-        color: #333;
-      }
-      .rcpt-meta {
-        display: flex;
-        justify-content: space-between;
-        font-size: 9.5pt;
-        margin-bottom: 10px;
-        border-bottom: 1px dashed #666;
-        padding-bottom: 6px;
-      }
-      .rcpt-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 10px;
-        font-size: 9.5pt;
-      }
-      .rcpt-table th {
-        border-top: 1px solid #000;
-        border-bottom: 1px solid #000;
-        padding: 5px 4px;
-        text-align: left;
-        background: #f1f5f9 !important;
-        -webkit-print-color-adjust: exact;
-      }
-      .rcpt-table td {
-        padding: 5px 4px;
-        border-bottom: 1px solid #ddd;
-      }
-      .rcpt-table .num { text-align: right; }
-      .rcpt-totals {
-        margin-top: 8px;
-        border-top: 2px solid #000;
-        padding-top: 6px;
-        font-size: 10.5pt;
-      }
-      .rcpt-totals div {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 4px;
-      }
-      .rcpt-grand {
-        font-size: 13pt;
-        font-weight: 700;
-      }
-      .rcpt-footer {
-        margin-top: 18px;
-        text-align: center;
-        font-size: 9pt;
-        color: #444;
-        border-top: 1px dashed #999;
-        padding-top: 8px;
-      }
-    }
   </style>
 </head>
 <body>
@@ -351,7 +261,7 @@
         </div>
 
         <div class="actions-bar">
-          <button type="button" class="success" onclick="printReceiptA5()" id="pdfBtn">Risiti PDF (A5)</button>
+          <button type="button" class="success" onclick="downloadReceiptA5PDF()" id="pdfBtn">Risiti PDF (A5)</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
           <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
@@ -372,51 +282,8 @@
     </div>
   </div>
 
-  <!-- A5 Receipt Print Template -->
-  <div id="printReceiptArea">
-    <div class="rcpt-header">
-      <h2>AMAK</h2>
-      <p id="rcptBizSub">AMAK TECHNOLOGY — Kariakoo, Dar es Salaam</p>
-      <p><strong id="rcptDocTitle">RISITI YA MAUZO / RECEIPT</strong></p>
-    </div>
-    <div class="rcpt-meta">
-      <div>
-        <div><strong id="rcptCustLbl">Mteja:</strong> <span id="rcptCustomer">-</span></div>
-        <div><strong id="rcptNoLbl">Risiti Na.:</strong> <span id="rcptNo">-</span></div>
-      </div>
-      <div style="text-align:right;">
-        <div><strong id="rcptDateLbl">Tarehe:</strong> <span id="rcptDate">-</span></div>
-      </div>
-    </div>
-    <table class="rcpt-table">
-      <thead>
-        <tr>
-          <th style="width:8%;">#</th>
-          <th style="width:42%;" id="rcptThItem">Bidhaa</th>
-          <th class="num" style="width:18%;" id="rcptThPrice">Bei</th>
-          <th class="num" style="width:12%;" id="rcptThQty">Idadi</th>
-          <th class="num" style="width:20%;" id="rcptThSub">Jumla</th>
-        </tr>
-      </thead>
-      <tbody id="rcptBody"></tbody>
-    </table>
-    <div class="rcpt-totals">
-      <div>
-        <span id="rcptTotQtyLbl">Jumla ya Idadi (Total Qty):</span>
-        <strong id="rcptTotQty">0</strong>
-      </div>
-      <div class="rcpt-grand">
-        <span id="rcptGrandLbl">JUMLA KUU (TZS):</span>
-        <span id="rcptGrandTotal">0</span>
-      </div>
-    </div>
-    <div class="rcpt-footer">
-      <p id="rcptThanks">Asante kwa kufanya biashara na AMAK!</p>
-    </div>
-  </div>
-
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v2";
+    const STORAGE_KEY = "amak_hesabu_state_v6";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -454,17 +321,12 @@
         histTitle: "Historia ya Hesabu Zilizohifadhiwa",
         clearHistBtn: "Futa Historia",
         errInput: "Weka Bei >= 0 na Idadi > 0.",
-        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kutoa Risiti PDF (A5).",
+        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kupakua Risiti PDF (A5).",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        noHist: "Hakuna historia iliyohifadhiwa bado.",
-        rcptDocTitle: "RISITI YA MAUZO",
-        rcptCustLbl: "Mteja:",
-        rcptNoLbl: "Risiti Na.:",
-        rcptDateLbl: "Tarehe:",
-        rcptTotQtyLbl: "Jumla ya Idadi:",
-        rcptGrandLbl: "JUMLA KUU (TZS):",
-        rcptThanks: "Asante kwa kufanya biashara na AMAK!"
+        pdfDownloadedMsg: "Risiti PDF (A5) imepakuliwa.",
+        pdfLibErr: "Imeshindwa kupakia maktaba ya PDF. Hakikisha intaneti ipo kisha jaribu tena.",
+        noHist: "Hakuna historia iliyohifadhiwa bado."
       },
       en: {
         subtitle: "Price, Quantity & A5 PDF Receipt (TZS)",
@@ -496,17 +358,12 @@
         histTitle: "Saved Calculation Sessions",
         clearHistBtn: "Clear History",
         errInput: "Enter Price >= 0 and Quantity > 0.",
-        emptyReceiptErr: "Add at least one item before generating an A5 PDF Receipt.",
+        emptyReceiptErr: "Add at least one item before downloading an A5 PDF Receipt.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        noHist: "No saved sessions yet.",
-        rcptDocTitle: "SALES RECEIPT",
-        rcptCustLbl: "Customer:",
-        rcptNoLbl: "Receipt No.:",
-        rcptDateLbl: "Date:",
-        rcptTotQtyLbl: "Total Quantity:",
-        rcptGrandLbl: "GRAND TOTAL (TZS):",
-        rcptThanks: "Thank you for doing business with AMAK!"
+        pdfDownloadedMsg: "A5 PDF Receipt downloaded.",
+        pdfLibErr: "Could not load PDF library. Check internet connection and try again.",
+        noHist: "No saved sessions yet."
       }
     };
 
@@ -699,7 +556,7 @@
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
-    function printReceiptA5() {
+    function downloadReceiptA5PDF() {
       const t = i18n[lang];
       if (!items.length) {
         document.getElementById("inputError").textContent = t.emptyReceiptErr;
@@ -707,8 +564,20 @@
       }
       document.getElementById("inputError").textContent = "";
 
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        showActionMsg(t.pdfLibErr, true);
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a5"
+      });
+
       const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
-      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK";
+      const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY — Kariakoo, Dar es Salaam";
       const now = new Date();
       const rcptNo = "AMAK-" + String(now.getFullYear()).slice(-2) +
         String(now.getMonth() + 1).padStart(2, "0") +
@@ -716,42 +585,134 @@
         String(now.getHours()).padStart(2, "0") +
         String(now.getMinutes()).padStart(2, "0");
 
-      document.getElementById("rcptBizSub").textContent = bizSub;
-      document.getElementById("rcptDocTitle").textContent = t.rcptDocTitle;
-      document.getElementById("rcptCustLbl").textContent = t.rcptCustLbl;
-      document.getElementById("rcptNoLbl").textContent = t.rcptNoLbl;
-      document.getElementById("rcptDateLbl").textContent = t.rcptDateLbl;
-      document.getElementById("rcptCustomer").textContent = cust;
-      document.getElementById("rcptNo").textContent = rcptNo;
-      document.getElementById("rcptDate").textContent = now.toLocaleString();
+      const pageW = doc.internal.pageSize.getWidth(); // 148mm for A5
+      const pageH = doc.internal.pageSize.getHeight(); // 210mm for A5
+      const margin = 10;
+      let y = 14;
 
-      document.getElementById("rcptThItem").textContent = t.thItem;
-      document.getElementById("rcptThPrice").textContent = t.thPrice;
-      document.getElementById("rcptThQty").textContent = t.thQty;
-      document.getElementById("rcptThSub").textContent = t.thSub;
-      document.getElementById("rcptTotQtyLbl").textContent = t.rcptTotQtyLbl;
-      document.getElementById("rcptGrandLbl").textContent = t.rcptGrandLbl;
-      document.getElementById("rcptThanks").textContent = t.rcptThanks;
+      // Brand Header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("AMAK", pageW / 2, y, { align: "center" });
+      y += 5;
 
-      const rcptBody = document.getElementById("rcptBody");
-      rcptBody.innerHTML = items.map((it, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${escapeHtml(it.name)}</td>
-          <td class="num">${fmt(it.price)}</td>
-          <td class="num">${fmt(it.qty)}</td>
-          <td class="num"><strong>${fmt(it.subtotal)}</strong></td>
-        </tr>
-      `).join("");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      const subLines = doc.splitTextToSize(bizSub, pageW - margin * 2);
+      doc.text(subLines, pageW / 2, y, { align: "center" });
+      y += subLines.length * 4 + 2;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(lang === "sw" ? "RISITI YA MAUZO (A5)" : "SALES RECEIPT (A5)", pageW / 2, y, { align: "center" });
+      y += 3;
+
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, pageW - margin, y);
+      y += 5;
+
+      // Meta Info
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${lang === "sw" ? "Mteja:" : "Customer:"}`, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(doc.splitTextToSize(cust, 62)[0], margin + 15, y);
+
+      doc.setFont("helvetica", "bold");
+      doc.text(`${lang === "sw" ? "Tarehe:" : "Date:"}`, pageW - margin, y, { align: "right" });
+      y += 4.5;
+
+      doc.setFont("helvetica", "bold");
+      doc.text(`${lang === "sw" ? "Risiti Na.:" : "Receipt No.:"}`, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(rcptNo, margin + 20, y);
+
+      doc.setFont("helvetica", "normal");
+      doc.text(now.toLocaleDateString(), pageW - margin, y, { align: "right" });
+      y += 4;
+
+      doc.setLineWidth(0.2);
+      doc.line(margin, y, pageW - margin, y);
+      y += 5;
+
+      // Table Header
+      const colNo = margin;
+      const colItem = margin + 8;
+      const colPrice = pageW - margin - 46;
+      const colQty = pageW - margin - 24;
+      const colSub = pageW - margin;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.text("#", colNo, y);
+      doc.text(lang === "sw" ? "Bidhaa" : "Item", colItem, y);
+      doc.text(lang === "sw" ? "Bei" : "Price", colPrice, y, { align: "right" });
+      doc.text(lang === "sw" ? "Idadi" : "Qty", colQty, y, { align: "right" });
+      doc.text(lang === "sw" ? "Jumla" : "Total", colSub, y, { align: "right" });
+      y += 2;
+      doc.line(margin, y, pageW - margin, y);
+      y += 4.5;
+
+      // Table Rows
+      doc.setFont("helvetica", "normal");
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const wrappedName = doc.splitTextToSize(String(it.name), 52);
+        const rowH = Math.max(wrappedName.length * 4, 4.5);
+
+        if (y + rowH > pageH - 36) {
+          doc.addPage("a5", "portrait");
+          y = 14;
+        }
+
+        doc.text(String(i + 1), colNo, y);
+        doc.text(wrappedName, colItem, y);
+        doc.text(fmt(it.price), colPrice, y, { align: "right" });
+        doc.text(fmt(it.qty), colQty, y, { align: "right" });
+
+        doc.setFont("helvetica", "bold");
+        doc.text(fmt(it.subtotal), colSub, y, { align: "right" });
+        doc.setFont("helvetica", "normal");
+
+        y += rowH + 2;
+      }
+
+      if (y > pageH - 34) {
+        doc.addPage("a5", "portrait");
+        y = 14;
+      }
+
+      y += 1;
+      doc.setLineWidth(0.5);
+      doc.line(margin, y, pageW - margin, y);
+      y += 5;
 
       const { totalQty, grandTotal } = getTotals();
-      document.getElementById("rcptTotQty").textContent = fmt(totalQty);
-      document.getElementById("rcptGrandTotal").textContent = fmt(grandTotal);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(lang === "sw" ? "Jumla ya Idadi:" : "Total Quantity:", margin, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(fmt(totalQty), pageW - margin, y, { align: "right" });
+      y += 6;
 
-      const prevTitle = document.title;
-      document.title = `${rcptNo}_${cust.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-      window.print();
-      setTimeout(() => { document.title = prevTitle; }, 1000);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11.5);
+      doc.text(lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):", margin, y);
+      doc.text(fmt(grandTotal), pageW - margin, y, { align: "right" });
+      y += 10;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.text(
+        lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for doing business with AMAK!",
+        pageW / 2,
+        y,
+        { align: "center" }
+      );
+
+      const safeCust = cust.replace(/[^a-zA-Z0-9_-]/g, "_");
+      doc.save(`${rcptNo}_A5_${safeCust}.pdf`);
+      showActionMsg(t.pdfDownloadedMsg);
     }
 
     function saveSession() {
@@ -786,7 +747,7 @@
           <div><strong>${i18n[lang].lblGrandTotal}: ${fmt(h.grandTotal)} TZS</strong></div>
           <div style="margin-top:8px; display:flex; gap:8px;">
             <button type="button" class="secondary small" onclick="loadSession(${h.id})">Load</button>
-            <button type="button" class="success small" onclick="loadAndPrint(${h.id})">PDF (A5)</button>
+            <button type="button" class="success small" onclick="loadAndDownloadPDF(${h.id})">PDF (A5)</button>
           </div>
         </div>
       `).join("");
@@ -804,9 +765,9 @@
       switchTab("calc");
     }
 
-    function loadAndPrint(id) {
+    function loadAndDownloadPDF(id) {
       loadSession(id);
-      setTimeout(() => printReceiptA5(), 150);
+      setTimeout(() => downloadReceiptA5PDF(), 150);
     }
 
     function clearHistory() {
@@ -852,10 +813,11 @@
       persist();
     }
 
-    function showActionMsg(msg) {
+    function showActionMsg(msg, isErr = false) {
       const el = document.getElementById("actionMsg");
+      el.className = isErr ? "status-msg err" : "status-msg ok";
       el.textContent = msg;
-      setTimeout(() => { el.textContent = ""; }, 3000);
+      setTimeout(() => { el.textContent = ""; el.className = "status-msg ok"; }, 3500);
     }
 
     function persist() {
