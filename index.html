@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#1d4ed8" />
   <title>AMAK Hesabu — Kikokotoo na Risiti</title>
   <link rel="manifest" href="./manifest.json" />
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <style>
     :root {
@@ -275,7 +274,7 @@
             <option value="58mm">Thermal 58mm (Printer Ndogo)</option>
             <option value="a5">A5 (148 x 210 mm)</option>
           </select>
-          <button type="button" class="success" onclick="downloadReceiptPDF()" id="pdfBtn">Pakua Risiti PDF</button>
+          <button type="button" class="success" onclick="downloadReceiptPDF()" id="pdfBtn">Fungua Risiti</button>
           <button type="button" onclick="saveSession()" id="saveBtn">Hifadhi Historia</button>
           <button type="button" class="secondary" onclick="copyWhatsApp()" id="waBtn">Nakili WhatsApp</button>
           <button type="button" class="secondary" onclick="exportCSV()" id="csvBtn">Pakua CSV</button>
@@ -297,7 +296,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "amak_hesabu_state_v10";
+    const STORAGE_KEY = "amak_hesabu_state_v11";
     const HIST_KEY = "amak_hesabu_history_v1";
 
     let lang = "sw";
@@ -328,7 +327,7 @@
         thQty: "Idadi",
         thSub: "Jumla Ndogo",
         thAct: "Hatua",
-        pdfBtn: "Pakua Risiti PDF",
+        pdfBtn: "Fungua Risiti",
         saveBtn: "Hifadhi Historia",
         waBtn: "Nakili WhatsApp",
         csvBtn: "Pakua CSV",
@@ -336,11 +335,10 @@
         histTitle: "Historia ya Hesabu Zilizohifadhiwa",
         clearHistBtn: "Futa Historia",
         errInput: "Weka Bei >= 0 na Idadi > 0.",
-        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kupakua Risiti PDF.",
+        emptyReceiptErr: "Ongeza angalau bidhaa moja kabla ya kufungua risiti.",
         savedMsg: "Hesabu zimehifadhiwa kwenye Historia.",
         copiedMsg: "Muhtasari umenakiliwa kwa ajili ya WhatsApp.",
-        pdfDownloadedMsg: "Risiti PDF yenye QR Code imepakuliwa.",
-        pdfLibErr: "Imeshindwa kupakia maktaba ya PDF. Hakikisha intaneti ipo kisha jaribu tena.",
+        pdfDownloadedMsg: "Risiti imefunguliwa.",
         noHist: "Hakuna historia iliyohifadhiwa bado."
       },
       en: {
@@ -366,7 +364,7 @@
         thQty: "Qty",
         thSub: "Subtotal",
         thAct: "Action",
-        pdfBtn: "Download Receipt PDF",
+        pdfBtn: "Open Receipt",
         saveBtn: "Save to History",
         waBtn: "Copy WhatsApp",
         csvBtn: "Export CSV",
@@ -374,11 +372,10 @@
         histTitle: "Saved Calculation Sessions",
         clearHistBtn: "Clear History",
         errInput: "Enter Price >= 0 and Quantity > 0.",
-        emptyReceiptErr: "Add at least one item before downloading a Receipt PDF.",
+        emptyReceiptErr: "Add at least one item before opening a receipt.",
         savedMsg: "Session saved to History.",
         copiedMsg: "Summary copied for WhatsApp.",
-        pdfDownloadedMsg: "Receipt PDF with QR Code downloaded.",
-        pdfLibErr: "Could not load PDF library. Check internet connection and try again.",
+        pdfDownloadedMsg: "Receipt opened.",
         noHist: "No saved sessions yet."
       }
     };
@@ -573,299 +570,25 @@
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
-    function drawQrOnPdf(doc, qrPayload, centerX, y, sizeMm) {
-      if (typeof qrcode !== "function") return y;
+    function buildQrSvgMarkup(qrPayload, pxSize) {
+      if (typeof qrcode !== "function") return "";
       try {
         const qr = qrcode(0, "M");
         qr.addData(qrPayload);
         qr.make();
         const count = qr.getModuleCount();
-        const cell = sizeMm / count;
-        const startX = centerX - sizeMm / 2;
-
-        doc.setFillColor(255, 255, 255);
-        doc.rect(startX - 1, y - 1, sizeMm + 2, sizeMm + 2, "F");
-
-        doc.setFillColor(0, 0, 0);
+        let rects = "";
         for (let r = 0; r < count; r++) {
           for (let c = 0; c < count; c++) {
             if (qr.isDark(r, c)) {
-              doc.rect(startX + c * cell, y + r * cell, cell + 0.05, cell + 0.05, "F");
+              rects += `<rect x="${c}" y="${r}" width="1" height="1" fill="#000"/>`;
             }
           }
         }
-        return y + sizeMm + 3;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${count} ${count}" width="${pxSize}" height="${pxSize}" style="display:block;margin:0 auto;background:#fff;padding:4px;border:1px solid #e2e8f0;">${rects}</svg>`;
       } catch (e) {
-        return y;
+        return "";
       }
-    }
-
-    function triggerPdfDownload(doc, fileName) {
-      try {
-        const dataUri = doc.output("datauristring");
-        const a = document.createElement("a");
-        a.href = dataUri;
-        a.download = fileName;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-        }, 2500);
-      } catch (e) {
-        doc.save(fileName);
-      }
-    }
-
-    function buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload) {
-      const estimatedH = Math.max(145, 98 + items.length * 14);
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [58, estimatedH]
-      });
-
-      const pageW = 58;
-      const m = 3.5;
-      const innerW = pageW - m * 2;
-      let y = 7;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.text("AMAK", pageW / 2, y, { align: "center" });
-      y += 4;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.5);
-      const subLines = doc.splitTextToSize(bizSub, innerW);
-      doc.text(subLines, pageW / 2, y, { align: "center" });
-      y += subLines.length * 3 + 1.5;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.text(lang === "sw" ? "RISITI (58mm)" : "RECEIPT (58mm)", pageW / 2, y, { align: "center" });
-      y += 2.5;
-
-      doc.setLineWidth(0.3);
-      doc.line(m, y, pageW - m, y);
-      y += 3.5;
-
-      doc.setFontSize(6.8);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${lang === "sw" ? "Mteja:" : "Cust:"}`, m, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(doc.splitTextToSize(cust, innerW - 11)[0], m + 11, y);
-      y += 3.2;
-
-      doc.setFont("helvetica", "bold");
-      doc.text(`${lang === "sw" ? "Na.:" : "No.:"}`, m, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(rcptNo, m + 7, y);
-      y += 3.2;
-
-      doc.text(now.toLocaleString(), m, y);
-      y += 2.5;
-
-      doc.line(m, y, pageW - m, y);
-      y += 3.5;
-
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        const nameLines = doc.splitTextToSize(`${i + 1}. ${it.name}`, innerW);
-        doc.text(nameLines, m, y);
-        y += nameLines.length * 3.1;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.8);
-        doc.text(`${fmt(it.price)} x ${fmt(it.qty)}`, m, y);
-        doc.setFont("helvetica", "bold");
-        doc.text(fmt(it.subtotal), pageW - m, y, { align: "right" });
-        y += 4;
-      }
-
-      doc.setLineWidth(0.35);
-      doc.line(m, y, pageW - m, y);
-      y += 3.8;
-
-      const { totalQty, grandTotal } = getTotals();
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.text(lang === "sw" ? "Jumla Idadi:" : "Total Qty:", m, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(fmt(totalQty), pageW - m, y, { align: "right" });
-      y += 4.2;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.8);
-      doc.text("JUMLA (TZS):", m, y);
-      doc.text(fmt(grandTotal), pageW - m, y, { align: "right" });
-      y += 5;
-
-      y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 20);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.2);
-      doc.text(
-        lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt",
-        pageW / 2,
-        y,
-        { align: "center" }
-      );
-      y += 3.5;
-
-      doc.setFontSize(6.5);
-      doc.text(
-        lang === "sw" ? "Asante kwa biashara na AMAK!" : "Thank you for business with AMAK!",
-        pageW / 2,
-        y,
-        { align: "center" }
-      );
-
-      return doc;
-    }
-
-    function buildA5PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload) {
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a5"
-      });
-
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      let y = 14;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text("AMAK", pageW / 2, y, { align: "center" });
-      y += 5;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      const subLines = doc.splitTextToSize(bizSub, pageW - margin * 2);
-      doc.text(subLines, pageW / 2, y, { align: "center" });
-      y += subLines.length * 4 + 2;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text(lang === "sw" ? "RISITI YA MAUZO (A5)" : "SALES RECEIPT (A5)", pageW / 2, y, { align: "center" });
-      y += 3;
-
-      doc.setLineWidth(0.5);
-      doc.line(margin, y, pageW - margin, y);
-      y += 5;
-
-      doc.setFontSize(8.5);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${lang === "sw" ? "Mteja:" : "Customer:"}`, margin, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(doc.splitTextToSize(cust, 62)[0], margin + 15, y);
-
-      doc.setFont("helvetica", "bold");
-      doc.text(`${lang === "sw" ? "Tarehe:" : "Date:"}`, pageW - margin, y, { align: "right" });
-      y += 4.5;
-
-      doc.setFont("helvetica", "bold");
-      doc.text(`${lang === "sw" ? "Risiti Na.:" : "Receipt No.:"}`, margin, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(rcptNo, margin + 20, y);
-
-      doc.setFont("helvetica", "normal");
-      doc.text(now.toLocaleDateString(), pageW - margin, y, { align: "right" });
-      y += 4;
-
-      doc.setLineWidth(0.2);
-      doc.line(margin, y, pageW - margin, y);
-      y += 5;
-
-      const colNo = margin;
-      const colItem = margin + 8;
-      const colPrice = pageW - margin - 46;
-      const colQty = pageW - margin - 24;
-      const colSub = pageW - margin;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.text("#", colNo, y);
-      doc.text(lang === "sw" ? "Bidhaa" : "Item", colItem, y);
-      doc.text(lang === "sw" ? "Bei" : "Price", colPrice, y, { align: "right" });
-      doc.text(lang === "sw" ? "Idadi" : "Qty", colQty, y, { align: "right" });
-      doc.text(lang === "sw" ? "Jumla" : "Total", colSub, y, { align: "right" });
-      y += 2;
-      doc.line(margin, y, pageW - margin, y);
-      y += 4.5;
-
-      doc.setFont("helvetica", "normal");
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        const wrappedName = doc.splitTextToSize(String(it.name), 52);
-        const rowH = Math.max(wrappedName.length * 4, 4.5);
-
-        if (y + rowH > pageH - 46) {
-          doc.addPage("a5", "portrait");
-          y = 14;
-        }
-
-        doc.text(String(i + 1), colNo, y);
-        doc.text(wrappedName, colItem, y);
-        doc.text(fmt(it.price), colPrice, y, { align: "right" });
-        doc.text(fmt(it.qty), colQty, y, { align: "right" });
-
-        doc.setFont("helvetica", "bold");
-        doc.text(fmt(it.subtotal), colSub, y, { align: "right" });
-        doc.setFont("helvetica", "normal");
-
-        y += rowH + 2;
-      }
-
-      if (y > pageH - 55) {
-        doc.addPage("a5", "portrait");
-        y = 14;
-      }
-
-      y += 1;
-      doc.setLineWidth(0.5);
-      doc.line(margin, y, pageW - margin, y);
-      y += 5;
-
-      const { totalQty, grandTotal } = getTotals();
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(lang === "sw" ? "Jumla ya Idadi:" : "Total Quantity:", margin, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(fmt(totalQty), pageW - margin, y, { align: "right" });
-      y += 6;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11.5);
-      doc.text(lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):", margin, y);
-      doc.text(fmt(grandTotal), pageW - margin, y, { align: "right" });
-      y += 6;
-
-      y = drawQrOnPdf(doc, qrPayload, pageW / 2, y, 24);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(
-        lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt",
-        pageW / 2,
-        y,
-        { align: "center" }
-      );
-      y += 5;
-
-      doc.setFontSize(8.5);
-      doc.text(
-        lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for doing business with AMAK!",
-        pageW / 2,
-        y,
-        { align: "center" }
-      );
-
-      return doc;
     }
 
     function downloadReceiptPDF() {
@@ -876,12 +599,6 @@
       }
       document.getElementById("inputError").textContent = "";
 
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        showActionMsg(t.pdfLibErr, true);
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
       const paper = document.getElementById("paperSize").value;
       const cust = document.getElementById("customerName").value.trim() || (lang === "sw" ? "Mteja wa Kawaida" : "Walk-in Customer");
       const bizSub = document.getElementById("bizSub").value.trim() || "AMAK TECHNOLOGY - Kariakoo, Dar es Salaam";
@@ -893,19 +610,118 @@
         String(now.getHours()).padStart(2, "0") +
         String(now.getMinutes()).padStart(2, "0");
 
-      const { grandTotal, totalQty } = getTotals();
+      const { totalQty, grandTotal } = getTotals();
       const qrPayload = customQr || `AMAK|No:${rcptNo}|Cust:${cust}|Qty:${totalQty}|Total:${grandTotal} TZS|Date:${now.toLocaleDateString()}`;
+      const qrSvg = buildQrSvgMarkup(qrPayload, paper === "58mm" ? 84 : 104);
 
-      const doc = paper === "58mm"
-        ? buildThermal58PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload)
-        : buildA5PDF(jsPDF, cust, bizSub, rcptNo, now, qrPayload);
+      const is58 = paper === "58mm";
+      const widthCss = is58 ? "58mm" : "148mm";
+      const pageSizeCss = is58 ? "58mm auto" : "A5 portrait";
+      const bodyFont = is58 ? "10px" : "12px";
+      const padCss = is58 ? "4mm 3mm" : "10mm";
 
-      const safeCust = (cust.replace(/[^a-zA-Z0-9_-]/g, "_") || "Receipt");
-      const sizeTag = paper === "58mm" ? "58mm" : "A5";
-      const fileName = `${rcptNo}_${sizeTag}_${safeCust}.pdf`;
+      const rowsHtml = items.map((it, idx) => is58
+        ? `<div style="margin-bottom:5px;border-bottom:1px dashed #cbd5e1;padding-bottom:4px;">
+             <div style="font-weight:700;">${idx + 1}. ${escapeHtml(it.name)}</div>
+             <div style="display:flex;justify-content:space-between;font-size:9.5px;">
+               <span>${fmt(it.price)} x ${fmt(it.qty)}</span>
+               <strong>${fmt(it.subtotal)}</strong>
+             </div>
+           </div>`
+        : `<tr>
+             <td>${idx + 1}</td>
+             <td>${escapeHtml(it.name)}</td>
+             <td style="text-align:right;">${fmt(it.price)}</td>
+             <td style="text-align:right;">${fmt(it.qty)}</td>
+             <td style="text-align:right;"><strong>${fmt(it.subtotal)}</strong></td>
+           </tr>`
+      ).join("");
 
-      triggerPdfDownload(doc, fileName);
-      showActionMsg(t.pdfDownloadedMsg);
+      const itemsBlock = is58
+        ? `<div style="margin-top:6px;">${rowsHtml}</div>`
+        : `<table style="width:100%;border-collapse:collapse;margin-top:6px;">
+             <thead>
+               <tr style="border-bottom:1px solid #0f172a;">
+                 <th style="text-align:left;padding:4px 2px;">#</th>
+                 <th style="text-align:left;padding:4px 2px;">${lang === "sw" ? "Bidhaa" : "Item"}</th>
+                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Bei" : "Price"}</th>
+                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Idadi" : "Qty"}</th>
+                 <th style="text-align:right;padding:4px 2px;">${lang === "sw" ? "Jumla" : "Total"}</th>
+               </tr>
+             </thead>
+             <tbody>${rowsHtml}</tbody>
+           </table>`;
+
+      const receiptHtml = `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(rcptNo)}</title>
+  <style>
+    @page { size: ${pageSizeCss}; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto;
+      width: ${widthCss};
+      padding: ${padCss};
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: ${bodyFont};
+      color: #0f172a;
+      background: #ffffff;
+    }
+    .center { text-align: center; }
+    .brand { font-size: ${is58 ? "16px" : "22px"}; font-weight: 800; letter-spacing: 0.5px; }
+    .sub { font-size: ${is58 ? "9px" : "11px"}; color: #475569; margin-top: 2px; }
+    .title { font-weight: 700; margin-top: 6px; font-size: ${is58 ? "10.5px" : "13px"}; }
+    .hr { border-top: 1px solid #0f172a; margin: 7px 0; }
+    .hr-dash { border-top: 1px dashed #64748b; margin: 7px 0; }
+    .meta-row { display: flex; justify-content: space-between; gap: 6px; font-size: ${is58 ? "9.5px" : "11px"}; margin-bottom: 3px; }
+    .tot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+    .grand { font-size: ${is58 ? "12.5px" : "15px"}; font-weight: 800; margin-top: 6px; }
+    .qr-box { margin-top: 10px; text-align: center; }
+    .qr-cap { font-size: ${is58 ? "8.5px" : "10.5px"}; color: #475569; margin-top: 4px; }
+    .foot { margin-top: 8px; text-align: center; font-size: ${is58 ? "9px" : "11px"}; color: #334155; }
+    .no-print { margin-top: 12px; display: flex; gap: 8px; justify-content: center; }
+    .no-print button { padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #1d4ed8; color: #fff; cursor: pointer; }
+    .no-print button.sec { background: #f1f5f9; color: #0f172a; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="center brand">AMAK</div>
+  <div class="center sub">${escapeHtml(bizSub)}</div>
+  <div class="center title">${lang === "sw" ? (is58 ? "RISITI (58mm)" : "RISITI YA MAUZO (A5)") : (is58 ? "RECEIPT (58mm)" : "SALES RECEIPT (A5)")}</div>
+  <div class="hr"></div>
+  <div class="meta-row"><span><strong>${lang === "sw" ? "Mteja:" : "Customer:"}</strong> ${escapeHtml(cust)}</span></div>
+  <div class="meta-row"><span><strong>${lang === "sw" ? "Na.:" : "No.:"}</strong> ${escapeHtml(rcptNo)}</span><span>${escapeHtml(now.toLocaleDateString())}</span></div>
+  <div class="hr-dash"></div>
+  ${itemsBlock}
+  <div class="hr"></div>
+  <div class="tot-row"><span>${lang === "sw" ? "Jumla Idadi:" : "Total Qty:"}</span><strong>${fmt(totalQty)}</strong></div>
+  <div class="tot-row grand"><span>${lang === "sw" ? "JUMLA KUU (TZS):" : "GRAND TOTAL (TZS):"}</span><span>${fmt(grandTotal)}</span></div>
+  ${qrSvg ? `<div class="qr-box">${qrSvg}<div class="qr-cap">${lang === "sw" ? "Scan QR kuthibitisha risiti" : "Scan QR to verify receipt"}</div></div>` : ""}
+  <div class="foot">${lang === "sw" ? "Asante kwa kufanya biashara na AMAK!" : "Thank you for business with AMAK!"}</div>
+  <div class="no-print">
+    <button type="button" onclick="window.print()">Print / Save PDF</button>
+    <button type="button" class="sec" onclick="window.close()">Close</button>
+  </div>
+</body>
+</html>`;
+
+      const win = window.open("", "_blank");
+      if (win && win.document) {
+        win.document.open();
+        win.document.write(receiptHtml);
+        win.document.close();
+        showActionMsg(t.pdfDownloadedMsg);
+      } else {
+        const blob = new Blob([receiptHtml], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        showActionMsg(t.pdfDownloadedMsg);
+      }
     }
 
     function saveSession() {
